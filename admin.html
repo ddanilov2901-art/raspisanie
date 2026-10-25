@@ -1,0 +1,1248 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Расписание — админка</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Подключение к серверу можно вписать сюда, чтобы не вводить на каждом компьютере */
+</style>
+<script>
+  window.RASP_CONFIG = {
+    url: "https://pcvjwvsswkakgamuzogm.supabase.co",
+    key: "sb_publishable_pjUbAZ1IiOUqdQp6UUdi5g_qQVSiPNB"
+  };
+</script>
+<style>
+:root {
+  --ink: #1E2A78;
+  --ink-soft: #E6E9F8;
+  --paper: #F5F7FB;
+  --surface: #FFFFFF;
+  --rule: #D5DCEA;
+  --rule-strong: #9AA6C4;
+  --text: #161B2E;
+  --muted: #5D6782;
+  --over: #1F5FC4;
+  --over-bg: #E2ECFF;
+  --under: #A85F07;
+  --under-bg: #FFEFD9;
+  --lunch-bg: #FFF8E1;
+  --danger: #B83232;
+  --danger-bg: #FCE8E8;
+  --ok: #1C7A47;
+  --ok-bg: #E1F4E9;
+  --focus: #3D5BFF;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #A9B8FF; --ink-soft: #232B52; --paper: #12151F; --surface: #1A1E2B;
+    --rule: #2D3346; --rule-strong: #4E5776; --text: #E8EAF2; --muted: #98A0B8;
+    --over: #8CB6FF; --over-bg: #1C2C4A; --under: #F2B266; --under-bg: #3D2C17; --lunch-bg: #2C2817;
+    --danger: #FF8A8A; --danger-bg: #432124; --ok: #7BD8A2; --ok-bg: #1B3528; --focus: #8EA2FF;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: "Golos Text", system-ui, sans-serif;
+  font-size: 15px; line-height: 1.5; color: var(--text); background: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; line-height: 1.2; }
+h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 19px; font-weight: 600; }
+h3 { font-size: 15px; font-weight: 600; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.hidden { display: none !important; }
+
+/* ---------- Кнопки и поля ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule);
+  background: var(--surface); padding: 8px 14px; border-radius: var(--radius-s); cursor: pointer;
+  font-weight: 500; white-space: nowrap;
+}
+.btn:hover { border-color: var(--rule-strong); }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--danger); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--ink-soft); }
+.btn:disabled { opacity: .5; cursor: default; }
+label.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 500; }
+input[type=text], input[type=password], input[type=time], input[type=url], select, textarea {
+  width: 100%; border: 1px solid var(--rule); background: var(--surface); border-radius: var(--radius-s);
+  padding: 9px 11px; font-size: 15px; color: var(--text);
+}
+input:focus, select:focus, textarea:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent); }
+textarea { resize: vertical; min-height: 120px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius-s); overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 7px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed=true].over { background: var(--over-bg); color: var(--over); font-weight: 600; }
+.seg button[aria-pressed=true].under { background: var(--under-bg); color: var(--under); font-weight: 600; }
+.seg button[aria-pressed=true].plain { background: var(--ink-soft); color: var(--ink); font-weight: 600; }
+
+/* ---------- Вход ---------- */
+.gate { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.gate-box { width: min(420px, 100%); display: grid; gap: 18px; }
+.gate-mark { display: flex; align-items: center; gap: 12px; }
+.gate-mark svg { flex: none; }
+.gate form { display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 22px; }
+.err { color: var(--danger); background: var(--danger-bg); border-radius: var(--radius-s); padding: 9px 12px; font-size: 14px; }
+.note { background: var(--ink-soft); border-radius: var(--radius-s); padding: 10px 12px; font-size: 14px; }
+
+/* ---------- Каркас ---------- */
+.app { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.side { border-right: 1px solid var(--rule); background: var(--surface); padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.side .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 16px; font-weight: 700; font-size: 17px; }
+.side .sect { font-size: 13px; color: var(--muted); padding: 14px 8px 4px; display: flex; justify-content: space-between; align-items: center; }
+.nav-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: var(--radius-s); cursor: pointer; }
+.nav-item:hover { background: var(--paper); }
+.nav-item[aria-current=page] { background: var(--ink-soft); color: var(--ink); font-weight: 600; }
+.nav-item .count { font-size: 12px; color: var(--muted); }
+.side .foot { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--rule); font-size: 13px; display: grid; gap: 6px; }
+.main { padding: 26px 32px 60px; min-width: 0; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 14px; margin-bottom: 20px; }
+.head .sub { margin-top: 4px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin-bottom: 20px; }
+.tabs button { border: 0; background: transparent; padding: 10px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; }
+.tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.status { font-size: 13px; color: var(--muted); }
+.status.saving { color: var(--ink); }
+.status.saved { color: var(--ok); }
+.status.error { color: var(--danger); }
+.menu-btn { display: none; }
+
+/* ---------- Сетка недели ---------- */
+.weekbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 14px; }
+.grid-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius-m); background: var(--surface); }
+table.week { border-collapse: collapse; width: 100%; min-width: 820px; table-layout: fixed; }
+table.week th, table.week td { border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule); vertical-align: top; }
+table.week tr > *:last-child { border-right: 0; }
+table.week tbody tr:last-child > * { border-bottom: 0; }
+table.week thead th { font-weight: 600; text-align: left; padding: 10px 12px; font-size: 14px; background: var(--paper); }
+table.week thead th.today { color: var(--ink); }
+table.week thead th.today::after { content: " · сегодня"; font-weight: 400; color: var(--muted); }
+table.week th.time { width: 92px; padding: 10px 12px; text-align: left; font-weight: 400; }
+.time .n { font-weight: 700; font-size: 16px; color: var(--ink); }
+.time .t { font-size: 13px; color: var(--muted); line-height: 1.35; }
+td.cell { padding: 0; height: 84px; }
+.cell-btn { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 84px; border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; }
+.cell-btn:hover { background: color-mix(in srgb, var(--ink-soft) 55%, transparent); }
+.cell-btn .empty { margin: auto; color: var(--rule-strong); font-size: 22px; line-height: 1; opacity: 0; }
+.cell-btn:hover .empty, .cell-btn:focus-visible .empty { opacity: 1; }
+.les { padding: 8px 10px; display: grid; gap: 1px; min-width: 0; }
+.les .s { font-weight: 600; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.les .m { font-size: 12px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.les.full { flex: 1; }
+.half { flex: 1; display: flex; min-height: 41px; }
+.half .les { flex: 1; }
+.half.over { background: color-mix(in srgb, var(--over-bg) 55%, transparent); }
+.half.under { background: color-mix(in srgb, var(--under-bg) 55%, transparent); }
+.half .tag { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; padding: 4px 2px; color: var(--muted); flex: none; }
+.half.over .tag { color: var(--over); }
+.half.under .tag { color: var(--under); }
+.line { height: 0; border-top: 2px solid var(--text); margin: 0 6px; opacity: .8; }
+.half.void .les { color: var(--rule-strong); font-size: 12px; align-self: center; }
+tr.lunch th, tr.lunch td { background: var(--lunch-bg); padding: 7px 12px; font-size: 13px; }
+tr.lunch td { color: var(--muted); }
+
+/* ---------- Таблица учеников ---------- */
+.list { border: 1px solid var(--rule); border-radius: var(--radius-m); background: var(--surface); overflow-x: auto; }
+table.users { border-collapse: collapse; width: 100%; min-width: 640px; }
+table.users th, table.users td { padding: 10px 14px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: middle; }
+table.users th { font-size: 13px; color: var(--muted); font-weight: 500; background: var(--paper); }
+table.users tr:last-child td { border-bottom: 0; }
+table.users td.act { text-align: right; white-space: nowrap; }
+.login { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 14px; }
+.badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--ink-soft); color: var(--ink); font-weight: 500; }
+.badge.off { background: var(--danger-bg); color: var(--danger); }
+.empty-state { padding: 36px 20px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+
+/* ---------- Диалоги ---------- */
+dialog { border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 0; background: var(--surface); color: var(--text); width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 32px); }
+dialog::backdrop { background: rgba(14, 18, 40, .45); }
+.dlg { display: grid; gap: 16px; padding: 22px; }
+.dlg .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dlg .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding-top: 4px; }
+.dlg .actions .left { margin-right: auto; }
+.slot-row { display: grid; grid-template-columns: 36px 1fr 1fr 36px; gap: 8px; align-items: center; }
+.slot-row .n { font-weight: 700; color: var(--ink); text-align: center; }
+.part { border: 1px solid var(--rule); border-radius: var(--radius-s); padding: 12px; display: grid; gap: 10px; }
+.part.over { border-color: color-mix(in srgb, var(--over) 45%, var(--rule)); }
+.part.under { border-color: color-mix(in srgb, var(--under) 45%, var(--rule)); }
+.part legend { padding: 0 4px; font-size: 13px; font-weight: 600; }
+.part.over legend { color: var(--over); }
+.part.under legend { color: var(--under); }
+.cred { background: var(--paper); border: 1px dashed var(--rule-strong); border-radius: var(--radius-s); padding: 12px 14px; font-family: ui-monospace, Menlo, monospace; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.nbtn { border: 1px solid var(--rule); background: var(--surface); color: var(--muted); border-radius: var(--radius-s); width: 34px; height: 32px; font-weight: 700; cursor: pointer; }
+.nbtn[aria-pressed=true] { background: var(--danger); border-color: var(--danger); color: #fff; }
+.jtable td, .jtable th { white-space: nowrap; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.checks label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 99px; padding: 5px 12px 5px 9px; cursor: pointer; font-size: 14px; background: var(--surface); color: var(--text); }
+.checks label:has(input:checked) { border-color: var(--ink); background: var(--ink-soft); color: var(--ink); font-weight: 500; }
+.checks input { accent-color: var(--ink); margin: 0; }
+.role-part { border-left: 3px solid var(--ink-soft); padding: 2px 0 2px 12px; display: grid; gap: 8px; }
+.role-part .t { font-size: 13px; font-weight: 600; color: var(--muted); }
+.badge.r-teacher { background: var(--over-bg); color: var(--over); }
+.badge.r-headman { background: var(--under-bg); color: var(--under); }
+.badge.r-curator { background: var(--ok-bg); color: var(--ok); }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--paper); padding: 10px 16px; border-radius: var(--radius-s); font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: calc(100vw - 32px); }
+#toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .side { position: fixed; inset: 0 auto 0 0; width: 270px; z-index: 20; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 40px rgba(0,0,0,.2); }
+  .side.open { transform: none; }
+  .main { padding: 18px 16px 60px; }
+  .menu-btn { display: inline-flex; }
+  .dlg .row { grid-template-columns: 1fr; }
+}
+@media print {
+  .side, .toolbar, .tabs, .menu-btn, .no-print { display: none !important; }
+  .app { display: block; }
+  .main { padding: 0; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ================== Состояние ================== */
+const LS = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+};
+const S = {
+  url: (window.RASP_CONFIG.url || LS.get("rasp_url") || "").replace(/\/+$/, ""),
+  key: window.RASP_CONFIG.key || LS.get("rasp_key") || "",
+  token: LS.get("rasp_token"),
+  user: null,
+  groups: [],
+  users: [],
+  view: "groups",       // groups | users
+  groupId: LS.get("rasp_group"),
+  groupTab: "schedule", // schedule | students
+  sched: null,          // расписание открытой группы
+  saveState: "",        // "" | saving | saved | error
+  saveTimer: null,
+  gate: null,           // connect | bootstrap | login
+  gateError: ""
+};
+const DAYS = ["", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница"];
+const DAY_SHORT = ["", "Пн", "Вт", "Ср", "Чт", "Пт"];
+
+/* ================== Утилиты ================== */
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hhmm = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const toMin = s => { const [h, m] = String(s).split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+const epochDay = d => Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+const fromEpochDay = n => { const d = new Date(n * 86400000); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return x; };
+const ddmm = d => String(d.getDate()).padStart(2, "0") + "." + String(d.getMonth() + 1).padStart(2, "0");
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+/** В выходные «текущей» считаем наступающую учебную неделю — как в приложении */
+const weekRef = () => { const n = new Date(); const dow = (n.getDay() + 6) % 7; return dow >= 5 ? addDays(mondayOf(n), 7) : n; };
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function weekTypeOf(sched, date) {
+  if (!sched || !sched.refType) return 1;
+  const weeks = Math.round((epochDay(mondayOf(date)) - sched.refMonday) / 7);
+  const same = ((weeks % 2) + 2) % 2 === 0;
+  return same ? sched.refType : (sched.refType === 1 ? 2 : 1);
+}
+
+function genPassword() {
+  const abc = "abcdefghijkmnpqrstuvwxyz23456789";
+  const a = new Uint32Array(8); crypto.getRandomValues(a);
+  return Array.from(a, x => abc[x % abc.length]).join("");
+}
+
+const TR = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"kh",ц:"ts",ч:"ch",ш:"sh",щ:"shch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
+const translit = s => String(s).toLowerCase().split("").map(c => TR[c] ?? c).join("").replace(/[^a-z0-9]/g, "");
+/** «Иванов Иван Петрович» → ivanov.ip, без повторов среди занятых логинов */
+function suggestLogin(fullName, taken) {
+  const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
+  let base = translit(parts[0] || "student") || "student";
+  const ini = parts.slice(1).map(p => translit(p)[0] || "").join("");
+  if (ini) base += "." + ini;
+  base = base.slice(0, 36);
+  if (base.length < 3) base = (base + "user").slice(0, 6);
+  let l = base, i = 2;
+  while (taken.has(l)) l = base + i++;
+  taken.add(l);
+  return l;
+}
+
+/* ================== Сервер ================== */
+async function rpc(fn, args = {}) {
+  if (!S.url || !S.key) throw new Error("Не настроено подключение к серверу");
+  let res;
+  try {
+    res = await fetch(S.url + "/rest/v1/rpc/" + fn, {
+      method: "POST",
+      headers: Object.assign({ "Content-Type": "application/json", apikey: S.key }, S.key.startsWith("eyJ") ? { Authorization: "Bearer " + S.key } : {}), // новые ключи sb_publishable_ — без Bearer
+      body: JSON.stringify(args)
+    });
+  } catch (e) {
+    throw new Error("Нет связи с сервером. Проверь интернет и адрес проекта.");
+  }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+  if (!res.ok) {
+    let msg = (data && (data.message || data.hint)) || ("Ошибка сервера " + res.status);
+    if (res.status === 404 && /function|Could not find/i.test(msg)) msg = "На сервере нет нужных функций. Запусти supabase_setup.sql в SQL Editor.";
+    if (res.status === 401) msg = "Сервер не принял ключ. Проверь anon key.";
+    if (/^AUTH: сессия/.test(msg)) { logoutLocal(); throw new Error("Сессия закончилась — войди заново"); }
+    throw new Error(msg.replace(/^[A-Z_]+: /, ""));
+  }
+  if (data && typeof data === "object" && !Array.isArray(data) && data.error) throw new Error(String(data.error).replace(/^[A-Z_]+: /, ""));
+  return data;
+}
+const T = () => ({ p_token: S.token });
+
+function logoutLocal() {
+  S.token = null; S.user = null; LS.set("rasp_token", null);
+  S.gate = "login"; render();
+}
+
+/* ================== Старт ================== */
+async function boot() {
+  if (!S.url || !S.key) { S.gate = "connect"; return render(); }
+  if (S.token) {
+    try {
+      S.user = await rpc("me", T());
+      if (!(S.user.roles || []).includes("admin")) { await rpc("logout", T()).catch(() => {}); S.token = null; LS.set("rasp_token", null); S.gateError = "Этот аккаунт не администратор. Для учеников — приложение на телефоне."; throw 0; }
+      S.gate = null;
+      await loadAll();
+      return;
+    } catch (e) { if (e && e.message) S.gateError = e.message; }
+  }
+  try {
+    S.gate = (await rpc("bootstrap_needed")) ? "bootstrap" : "login";
+  } catch (e) {
+    S.gate = "connect"; S.gateError = e.message;
+  }
+  render();
+}
+
+async function loadAll() {
+  [S.groups, S.users] = await Promise.all([rpc("admin_list_groups", T()), rpc("admin_list_users", T())]);
+  if (S.view === "groups") {
+    if (!S.groups.find(g => g.id === S.groupId)) S.groupId = S.groups[0] ? S.groups[0].id : null;
+    if (S.groupId) await openGroup(S.groupId, true);
+  }
+  render();
+}
+
+async function openGroup(id, silent) {
+  S.view = "groups"; S.groupId = id; LS.set("rasp_group", id);
+  const r = await rpc("admin_get_schedule", { ...T(), p_group: id });
+  S.sched = normalizeSched(r.schedule);
+  S.saveState = "";
+  if (!silent) render();
+}
+
+function normalizeSched(x) {
+  const s = Object.assign({ lunchEnabled: true, lunchStart: 700, lunchEnd: 740, refMonday: 0, refType: 0, slots: [], lessons: [] }, x || {});
+  if (!Array.isArray(s.slots) || !s.slots.length) s.slots = [[510,600],[610,700],[740,830],[840,930],[940,1030],[1040,1130]].map((p, i) => ({ num: i + 1, start: p[0], end: p[1] }));
+  s.slots.sort((a, b) => a.start - b.start);
+  s.lessons = (s.lessons || []).map(l => ({ id: l.id || 0, day: +l.day, slot: +l.slot, subject: l.subject || "", kind: l.kind || "", room: l.room || "", teacher: l.teacher || "", week: +l.week || 0 }));
+  if (!s.refType) { s.refMonday = epochDay(mondayOf(new Date())); s.refType = 1; }
+  return s;
+}
+
+/** Автосохранение расписания через 700 мс после последней правки */
+function schedChanged() {
+  S.saveState = "saving"; renderStatus();
+  clearTimeout(S.saveTimer);
+  S.saveTimer = setTimeout(saveSched, 700);
+  renderGrid();
+}
+async function saveSched() {
+  const gid = S.groupId, sched = JSON.parse(JSON.stringify(S.sched));
+  sched.lessons.forEach((l, i) => l.id = i + 1);
+  try {
+    await rpc("admin_set_schedule", { ...T(), p_group: gid, p_schedule: sched });
+    S.saveState = "saved";
+    const g = S.groups.find(g => g.id === gid); if (g) g.lessons = sched.lessons.length;
+    renderSide();
+  } catch (e) {
+    S.saveState = "error"; S.saveError = e.message;
+  }
+  renderStatus();
+}
+window.addEventListener("beforeunload", e => { if (S.saveState === "saving" || (S.jEdits && Object.keys(S.jEdits).length)) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ================== Отрисовка ================== */
+function render() {
+  const root = $("#root");
+  if (S.gate) { root.innerHTML = gateHtml(); bindGate(); return; }
+  root.innerHTML = `
+    <div class="app">
+      <nav class="side" id="side" aria-label="Разделы"></nav>
+      <main class="main" id="main"></main>
+    </div>`;
+  renderSide(); renderMain();
+}
+
+const MARK = `<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="1" y="1" width="28" height="28" rx="7" fill="var(--ink)"/><path d="M7 15.5h16" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round"/><rect x="8" y="8" width="9" height="4" rx="1.5" fill="var(--surface)" opacity=".9"/><rect x="13" y="19" width="9" height="4" rx="1.5" fill="var(--surface)" opacity=".55"/></svg>`;
+
+function gateHtml() {
+  const e = S.gateError ? `<div class="err">${esc(S.gateError)}</div>` : "";
+  if (S.gate === "connect") return `
+    <div class="gate"><div class="gate-box">
+      <div class="gate-mark">${MARK}<h1>Подключение к серверу</h1></div>
+      <p class="muted">Данные из Supabase: Project Settings → API. Их нужно ввести один раз на этом компьютере.</p>
+      <form id="f">
+        ${e}
+        <label class="field">Project URL<input type="url" name="url" placeholder="https://xxxx.supabase.co" value="${esc(S.url)}" required></label>
+        <label class="field">anon public key<input type="text" name="key" placeholder="eyJhbGciOi…" value="${esc(S.key)}" required autocomplete="off"></label>
+        <button class="btn primary" type="submit">Подключиться</button>
+      </form>
+    </div></div>`;
+  if (S.gate === "bootstrap") return `
+    <div class="gate"><div class="gate-box">
+      <div class="gate-mark">${MARK}<h1>Первый запуск</h1></div>
+      <p class="muted">Создай главный аккаунт администратора. Это можно сделать только один раз — дальше аккаунты создаются из админки.</p>
+      <form id="f">
+        ${e}
+        <label class="field">Как тебя подписывать<input type="text" name="name" placeholder="Имя и фамилия" autocomplete="name"></label>
+        <label class="field">Логин<input type="text" name="login" required minlength="3" pattern="[A-Za-z0-9._\\-]{3,40}" title="Латиница, цифры, точка, дефис, _" autocomplete="username"></label>
+        <label class="field">Пароль (от 8 символов)<input type="password" name="pass" required minlength="8" autocomplete="new-password"></label>
+        <button class="btn primary" type="submit">Создать администратора</button>
+      </form>
+    </div></div>`;
+  return `
+    <div class="gate"><div class="gate-box">
+      <div class="gate-mark">${MARK}<h1>Расписание · админка</h1></div>
+      <form id="f">
+        ${e}
+        <label class="field">Логин<input type="text" name="login" required autocomplete="username" autofocus></label>
+        <label class="field">Пароль<input type="password" name="pass" required autocomplete="current-password"></label>
+        <button class="btn primary" type="submit">Войти</button>
+      </form>
+      <button class="btn ghost small" id="reconnect" type="button">Сменить сервер</button>
+    </div></div>`;
+}
+
+function bindGate() {
+  const f = $("#f");
+  const rc = $("#reconnect");
+  if (rc) rc.onclick = () => { S.gate = "connect"; S.gateError = ""; render(); };
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const fd = new FormData(f), btn = f.querySelector("button[type=submit]");
+    btn.disabled = true; S.gateError = "";
+    try {
+      if (S.gate === "connect") {
+        S.url = String(fd.get("url")).trim().replace(/\/+$/, ""); S.key = String(fd.get("key")).trim();
+        LS.set("rasp_url", S.url); LS.set("rasp_key", S.key);
+        S.gate = (await rpc("bootstrap_needed")) ? "bootstrap" : "login";
+        render(); return;
+      }
+      const r = S.gate === "bootstrap"
+        ? await rpc("bootstrap_admin", { p_login: fd.get("login"), p_password: fd.get("pass"), p_full_name: fd.get("name") || "" })
+        : await rpc("login", { p_login: fd.get("login"), p_password: fd.get("pass"), p_device: "admin-panel" });
+      if (!(r.user.roles || []).includes("admin")) { await rpc("logout", { p_token: r.token }).catch(() => {}); throw new Error("Этот аккаунт не администратор. Для учеников — приложение на телефоне."); }
+      S.token = r.token; S.user = r.user; LS.set("rasp_token", r.token);
+      S.gate = null;
+      await loadAll();
+    } catch (e) {
+      S.gateError = e.message; render();
+    }
+  };
+}
+
+function renderSide() {
+  const el = $("#side"); if (!el) return;
+  el.innerHTML = `
+    <div class="brand">${MARK}<span>Расписание</span></div>
+    <div class="sect"><span>Группы</span><button class="btn ghost small" data-act="new-group" aria-label="Новая группа">+ Новая</button></div>
+    ${S.groups.length ? S.groups.map(g => `
+      <button class="nav-item" data-group="${g.id}" ${S.view === "groups" && S.groupId === g.id ? 'aria-current="page"' : ""}>
+        <span>${esc(g.name)}</span><span class="count">${g.students} уч.</span>
+      </button>`).join("") : `<p class="small muted" style="padding:4px 10px">Пока нет групп</p>`}
+    <div class="sect"><span>Люди</span></div>
+    <button class="nav-item" data-act="users" ${S.view === "users" ? 'aria-current="page"' : ""}><span>Все аккаунты</span><span class="count">${S.users.length}</span></button>
+    <div class="foot">
+      <span>${esc(S.user.full_name || S.user.login)} <span class="muted">· админ</span></span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn small" data-act="my-pass">Сменить пароль</button>
+        <button class="btn small" data-act="logout">Выйти</button>
+      </div>
+    </div>`;
+}
+
+function renderMain() {
+  const el = $("#main"); if (!el) return;
+  const menu = `<button class="btn menu-btn" data-act="menu" aria-label="Меню">☰ Меню</button>`;
+  if (S.view === "users") { el.innerHTML = usersHtml(null, menu); return; }
+  const g = S.groups.find(g => g.id === S.groupId);
+  if (!g) {
+    el.innerHTML = `${menu}<div class="empty-state" style="margin-top:12vh">
+      <h2>Создай первую группу</h2>
+      <p class="muted">Группа — это расписание и ученики, которые его видят в приложении.</p>
+      <button class="btn primary" data-act="new-group">Создать группу</button></div>`;
+    return;
+  }
+  el.innerHTML = `
+    ${menu}
+    <div class="head">
+      <div><h1>${esc(g.name)}</h1><p class="sub muted" id="groupSub"></p></div>
+      <div class="toolbar">
+        <span id="status" class="status"></span>
+        <button class="btn" data-act="rename-group">Переименовать</button>
+        <button class="btn danger" data-act="delete-group">Удалить</button>
+      </div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="${S.groupTab === "schedule"}" data-tab="schedule">Расписание</button>
+      <button role="tab" aria-selected="${S.groupTab === "journal"}" data-tab="journal">Журнал</button>
+      <button role="tab" aria-selected="${S.groupTab === "debts"}" data-tab="debts">Долги</button>
+      <button role="tab" aria-selected="${S.groupTab === "students"}" data-tab="students">Люди</button>
+    </div>
+    <div id="tabbody"></div>`;
+  if (S.groupTab === "students") { $("#tabbody").innerHTML = usersHtml(g.id, ""); $("#groupSub").textContent = `${g.students} ${plural(g.students, "ученик", "ученика", "учеников")} · ${g.lessons} ${plural(g.lessons, "занятие", "занятия", "занятий")} в неделе`; }
+  else if (S.groupTab === "journal") { $("#tabbody").innerHTML = journalShell(); renderGrid(); bindJournalDate(); if (S.jMode === "day") loadJournalDay(); else renderJournalBody(); }
+  else if (S.groupTab === "debts") { $("#tabbody").innerHTML = debtsShell(); renderGrid(); $("#dclosed").onchange = e => { S.debtsClosed = e.target.checked; renderDebtsBody(); }; renderDebtsBody(); }
+  else { $("#tabbody").innerHTML = scheduleShell(); renderGrid(); }
+  renderStatus();
+}
+
+function renderStatus() {
+  const el = $("#status"); if (!el) return;
+  const map = { saving: ["saving", "Сохраняю…"], saved: ["saved", "Сохранено — ученики увидят при открытии приложения"], error: ["error", "Не сохранилось: " + (S.saveError || "")] };
+  const [cls, txt] = map[S.saveState] || ["", ""];
+  el.className = "status " + cls; el.textContent = txt;
+}
+
+function plural(n, a, b, c) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c); }
+
+/* ---------- Расписание ---------- */
+function scheduleShell() {
+  const ref = weekRef();
+  const mon = mondayOf(ref);
+  const wt = weekTypeOf(S.sched, ref);
+  const weekend = mondayOf(new Date()).getTime() !== mon.getTime();
+  return `
+    <div class="weekbar">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span>${weekend ? "Наступающая неделя" : "Эта неделя"} (${ddmm(mon)}–${ddmm(addDays(mon, 4))}):</span>
+        <div class="seg" role="group" aria-label="Тип текущей недели">
+          <button class="over" aria-pressed="${wt === 1}" data-act="week" data-w="1">над чертой</button>
+          <button class="under" aria-pressed="${wt === 2}" data-act="week" data-w="2">под чертой</button>
+        </div>
+        <span class="small muted">дальше чередуется сама</span>
+      </div>
+      <div class="toolbar" style="margin-left:auto">
+        <button class="btn" data-act="bells">Время пар и обед</button>
+        <button class="btn" data-act="import">Загрузить из приложения</button>
+        <button class="btn" data-act="export">Скачать файл</button>
+        <button class="btn" data-act="print">Печать</button>
+      </div>
+    </div>
+    <div class="grid-wrap"><table class="week" id="grid"></table></div>
+    <p class="small muted" style="margin-top:10px">Нажми на клетку, чтобы поставить пару. Если предметы чередуются, клетка делится чертой: сверху — неделя над чертой, снизу — под чертой.</p>
+    <input type="file" id="importFile" accept=".json,application/json,text/plain" class="hidden">`;
+}
+
+function cellLessons(day, slot) { return S.sched.lessons.filter(l => l.day === day && l.slot === slot); }
+
+function lesHtml(l, cls = "") {
+  const meta = [l.kind, l.room ? "ауд. " + l.room : "", l.teacher].filter(Boolean).join(", ");
+  return `<span class="les ${cls}"><span class="s">${esc(l.subject)}</span>${meta ? `<span class="m">${esc(meta)}</span>` : ""}</span>`;
+}
+
+function cellHtml(day, slot) {
+  const ls = cellLessons(day, slot.num);
+  const every = ls.find(l => l.week === 0);
+  const over = ls.find(l => l.week === 1), under = ls.find(l => l.week === 2);
+  const label = `${DAYS[day]}, ${slot.num} пара`;
+  let inner;
+  if (every) inner = lesHtml(every, "full");
+  else if (over || under) inner = `
+    <span class="half over">${over ? lesHtml(over) : `<span class="les"><span class="m">нет пары</span></span>`}</span>
+    <span class="line" aria-hidden="true"></span>
+    <span class="half under">${under ? lesHtml(under) : `<span class="les"><span class="m">нет пары</span></span>`}</span>`;
+  else inner = `<span class="empty" aria-hidden="true">+</span>`;
+  return `<td class="cell"><button class="cell-btn" data-cell="${day}:${slot.num}" aria-label="${esc(label)}${ls.length ? "" : ", пусто"}">${inner}</button></td>`;
+}
+
+function renderGrid() {
+  const s = S.sched; if (!s) return;
+  const g = S.groups.find(g => g.id === S.groupId), sub = $("#groupSub");
+  if (g && sub) sub.textContent = `${g.students} ${plural(g.students, "ученик", "ученика", "учеников")} · ${s.lessons.length} ${plural(s.lessons.length, "занятие", "занятия", "занятий")} в неделе`;
+  const t = $("#grid"); if (!t) return;
+  const todayDow = (new Date().getDay() + 6) % 7 + 1;
+  let rows = "";
+  let lunchDone = !s.lunchEnabled;
+  for (const sl of s.slots) {
+    if (!lunchDone && sl.start >= s.lunchStart) { rows += lunchRow(); lunchDone = true; }
+    rows += `<tr><th class="time" scope="row"><div class="n">${sl.num}</div><div class="t">${hhmm(sl.start)}<br>${hhmm(sl.end)}</div></th>${[1,2,3,4,5].map(d => cellHtml(d, sl)).join("")}</tr>`;
+  }
+  if (!lunchDone) rows += lunchRow();
+  t.innerHTML = `<thead><tr><th class="time">Пара</th>${[1,2,3,4,5].map(d => `<th class="${d === todayDow ? "today" : ""}">${DAYS[d]}</th>`).join("")}</tr></thead><tbody>${rows}</tbody>`;
+  function lunchRow() { return `<tr class="lunch"><th scope="row">Обед</th><td colspan="5">${hhmm(s.lunchStart)}–${hhmm(s.lunchEnd)}</td></tr>`; }
+}
+
+/* ---------- Люди ---------- */
+const ROLE_NAMES = { student: "ученик", headman: "староста", teacher: "учитель", curator: "куратор", admin: "админ" };
+const ROLE_ORDER = ["student", "headman", "teacher", "curator", "admin"];
+const gname = id => (S.groups.find(g => g.id === id) || {}).name || "?";
+function roleBadges(u) {
+  return (u.roles || []).slice().sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))
+    .map(r => `<span class="badge r-${r}">${ROLE_NAMES[r] || r}</span>`).join(" ");
+}
+/** Что у аккаунта по группам — коротко, для таблицы */
+function rolesDetail(u) {
+  const parts = [], R = u.roles || [];
+  if (R.includes("student")) parts.push(u.group_id ? "учится: " + esc(gname(u.group_id)) : "ученик без группы");
+  if (R.includes("headman") && u.headman_group) parts.push("староста " + esc(gname(u.headman_group)));
+  if (R.includes("teacher")) parts.push("ведёт " + ((u.teacher_subjects || []).map(esc).join(", ") || "—") + " в " + ((u.teacher_groups || []).map(gname).map(esc).join(", ") || "—"));
+  if (R.includes("curator")) parts.push("курирует " + (u.curator_groups || []).map(gname).map(esc).join(", "));
+  return parts.join("; ");
+}
+function relatedToGroup(u, gid) {
+  const R = u.roles || [];
+  return (R.includes("student") && u.group_id === gid) || (R.includes("headman") && u.headman_group === gid)
+      || (R.includes("teacher") && (u.teacher_groups || []).includes(gid)) || (R.includes("curator") && (u.curator_groups || []).includes(gid));
+}
+function usersHtml(groupId, menu) {
+  const list = groupId ? S.users.filter(u => relatedToGroup(u, groupId)) : S.users;
+  const g = groupId ? S.groups.find(g => g.id === groupId) : null;
+  const head = groupId ? "" : `${menu}<div class="head"><div><h1>Все аккаунты</h1><p class="sub muted">${S.users.length} ${plural(S.users.length, "аккаунт", "аккаунта", "аккаунтов")}</p></div></div>`;
+  const rows = list.map(u => `
+    <tr>
+      <td>${esc(u.full_name) || '<span class="muted">без имени</span>'}${u.disabled ? ' <span class="badge off">отключён</span>' : ""}
+        <div style="margin-top:3px">${roleBadges(u)}</div></td>
+      <td class="login">${esc(u.login)}</td>
+      <td class="small muted">${rolesDetail(u)}</td>
+      <td class="small muted">${u.last_login ? "входил " + new Date(u.last_login).toLocaleDateString("ru-RU") : "ещё не входил"}</td>
+      <td class="act">
+        <button class="btn small" data-act="edit-user" data-id="${u.id}">Изменить</button>
+        <button class="btn small" data-act="reset-pass" data-id="${u.id}">Новый пароль</button>
+      </td>
+    </tr>`).join("");
+  return `
+    ${head}
+    <div class="toolbar no-print" style="margin-bottom:14px">
+      <button class="btn primary" data-act="new-user" ${groupId ? `data-group="${groupId}"` : ""}>Добавить аккаунт</button>
+      <button class="btn" data-act="bulk-users" ${groupId ? `data-group="${groupId}"` : ""}>Добавить учеников списком</button>
+    </div>
+    ${list.length ? `<div class="list"><table class="users">
+      <thead><tr><th>Имя и роли</th><th>Логин</th><th>Назначения</th><th>Вход</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+      : `<div class="list"><div class="empty-state"><h3>${g ? "В группе пока никого нет" : "Аккаунтов нет"}</h3><p class="muted">Учеников удобно добавить списком ФИО — логины и пароли создадутся сами. Учителя, старосту и куратора — через «Добавить аккаунт».</p></div></div>`}`;
+}
+
+/* ================== Диалоги ================== */
+const dlg = $("#dlg");
+function openDialog(html, onBind) {
+  dlg.innerHTML = `<form method="dialog" class="dlg" novalidate>${html}</form>`;
+  dlg.showModal();
+  const form = dlg.querySelector("form");
+  form.querySelectorAll("[data-close]").forEach(b => b.onclick = e => { e.preventDefault(); dlg.close(); });
+  onBind && onBind(form);
+  const first = form.querySelector("input:not([type=hidden]), select, textarea");
+  if (first) first.focus();
+}
+function dlgError(form, msg) {
+  let e = form.querySelector(".err");
+  if (!e) { e = document.createElement("div"); e.className = "err"; form.insertBefore(e, form.children[1]); }
+  e.textContent = msg;
+}
+function groupOptions(sel) {
+  return `<option value="">— без группы —</option>` + S.groups.map(g => `<option value="${g.id}" ${g.id === sel ? "selected" : ""}>${esc(g.name)}</option>`).join("");
+}
+
+function groupDialog(g) {
+  openDialog(`
+    <h2>${g ? "Переименовать группу" : "Новая группа"}</h2>
+    <label class="field">Название<input type="text" name="name" value="${esc(g ? g.name : "")}" placeholder="например, ИС-21" required></label>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">${g ? "Сохранить" : "Создать группу"}</button></div>`,
+    form => form.onsubmit = async e => {
+      e.preventDefault();
+      try {
+        const r = await rpc("admin_save_group", { ...T(), p_id: g ? g.id : null, p_name: form.name.value });
+        dlg.close();
+        S.groups = await rpc("admin_list_groups", T());
+        if (!g) { S.groupTab = "schedule"; await openGroup(r.id, true); }
+        render(); toast(g ? "Группа переименована" : "Группа создана");
+      } catch (err) { dlgError(form, err.message); }
+    });
+}
+
+function cellDialog(day, slotNum) {
+  const sl = S.sched.slots.find(s => s.num === slotNum);
+  const ls = cellLessons(day, slotNum);
+  const every = ls.find(l => l.week === 0), over = ls.find(l => l.week === 1), under = ls.find(l => l.week === 2);
+  let mode = every ? "every" : (over || under) ? "split" : "every";
+  const subjects = [...new Set(S.sched.lessons.map(l => l.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+  const part = (key, l, title) => `
+    <fieldset class="part ${key}">
+      <legend>${title}</legend>
+      <label class="field">Предмет<input type="text" name="${key}_subject" list="subjects" value="${esc(l ? l.subject : "")}" placeholder="пусто — пары нет"></label>
+      <div class="row">
+        <label class="field">Тип занятия<input type="text" name="${key}_kind" value="${esc(l ? l.kind : "")}" placeholder="лекция, практика, лаба"></label>
+        <label class="field">Аудитория<input type="text" name="${key}_room" value="${esc(l ? l.room : "")}"></label>
+      </div>
+      <label class="field">Преподаватель<input type="text" name="${key}_teacher" value="${esc(l ? l.teacher : "")}"></label>
+    </fieldset>`;
+  openDialog(`
+    <div><h2>${DAYS[day]}, ${slotNum} пара</h2><p class="muted small">${hhmm(sl.start)}–${hhmm(sl.end)}</p></div>
+    <div class="seg" role="group" aria-label="Как идёт пара">
+      <button type="button" class="plain" data-mode="every" aria-pressed="${mode === "every"}">Каждую неделю</button>
+      <button type="button" class="plain" data-mode="split" aria-pressed="${mode === "split"}">Чередуется по чертам</button>
+    </div>
+    <datalist id="subjects">${subjects.map(s => `<option value="${esc(s)}">`).join("")}</datalist>
+    <div data-show="every">${part("every", every || over || under, "Каждую неделю")}</div>
+    <div data-show="split" style="display:grid;gap:12px">${part("over", over || every, "Над чертой")}${part("under", under, "Под чертой")}</div>
+    <div class="actions">
+      ${ls.length ? `<button class="btn danger left" type="button" data-clear>Очистить клетку</button>` : ""}
+      <button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Сохранить</button>
+    </div>`,
+    form => {
+      const show = () => {
+        form.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+        form.querySelectorAll("[data-show]").forEach(d => d.classList.toggle("hidden", d.dataset.show !== mode));
+      };
+      form.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { mode = b.dataset.mode; show(); });
+      show();
+      const clear = () => { S.sched.lessons = S.sched.lessons.filter(l => !(l.day === day && l.slot === slotNum)); };
+      const cl = form.querySelector("[data-clear]");
+      if (cl) cl.onclick = () => { clear(); dlg.close(); schedChanged(); };
+      form.onsubmit = e => {
+        e.preventDefault();
+        const read = key => ({ day, slot: slotNum, subject: form[key + "_subject"].value.trim(), kind: form[key + "_kind"].value.trim(), room: form[key + "_room"].value.trim(), teacher: form[key + "_teacher"].value.trim() });
+        clear();
+        if (mode === "every") { const l = read("every"); if (l.subject) S.sched.lessons.push({ ...l, week: 0 }); }
+        else {
+          const o = read("over"), u = read("under");
+          if (o.subject) S.sched.lessons.push({ ...o, week: 1 });
+          if (u.subject) S.sched.lessons.push({ ...u, week: 2 });
+        }
+        dlg.close(); schedChanged();
+      };
+    });
+}
+
+function bellsDialog() {
+  const s = S.sched;
+  let slots = s.slots.map(x => ({ ...x }));
+  const rowsHtml = () => slots.map((x, i) => `
+    <div class="slot-row">
+      <span class="n">${i + 1}</span>
+      <input type="time" data-i="${i}" data-k="start" value="${hhmm(x.start)}" aria-label="${i + 1} пара, начало" required>
+      <input type="time" data-i="${i}" data-k="end" value="${hhmm(x.end)}" aria-label="${i + 1} пара, конец" required>
+      <button type="button" class="btn ghost" data-del="${i}" aria-label="Удалить ${i + 1} пару">✕</button>
+    </div>`).join("");
+  openDialog(`
+    <h2>Время пар и обед</h2>
+    <div style="display:grid;gap:8px" id="slots"></div>
+    <button type="button" class="btn" data-add style="justify-self:start">+ Добавить пару</button>
+    <fieldset class="part"><legend>Обед</legend>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="lunch" ${s.lunchEnabled ? "checked" : ""}> Показывать обед</label>
+      <div class="row">
+        <label class="field">Начало<input type="time" name="ls" value="${hhmm(s.lunchStart)}"></label>
+        <label class="field">Конец<input type="time" name="le" value="${hhmm(s.lunchEnd)}"></label>
+      </div>
+    </fieldset>
+    <p class="small muted">Если удалить пару, занятия на ней тоже удалятся.</p>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Сохранить</button></div>`,
+    form => {
+      const box = form.querySelector("#slots");
+      const draw = () => { box.innerHTML = rowsHtml(); };
+      draw();
+      box.oninput = e => { const i = e.target.dataset.i; if (i != null) slots[i][e.target.dataset.k] = toMin(e.target.value); };
+      box.onclick = e => { const d = e.target.closest("[data-del]"); if (d) { slots.splice(+d.dataset.del, 1); draw(); } };
+      form.querySelector("[data-add]").onclick = () => {
+        const last = slots[slots.length - 1]; const st = last ? Math.min(last.end + 10, 1380) : 510;
+        slots.push({ num: 0, start: st, end: Math.min(st + 90, 1439) }); draw();
+      };
+      form.onsubmit = e => {
+        e.preventDefault();
+        if (slots.some(x => x.end <= x.start)) return dlgError(form, "У каждой пары конец должен быть позже начала");
+        const ls = toMin(form.ls.value), le = toMin(form.le.value);
+        if (form.lunch.checked && le <= ls) return dlgError(form, "Конец обеда должен быть позже начала");
+        // перенумеровываем пары по времени и переносим на них занятия
+        const remap = new Map();
+        slots.forEach(x => x._old = x.num);
+        slots.sort((a, b) => a.start - b.start).forEach((x, i) => { if (x._old) remap.set(x._old, i + 1); x.num = i + 1; delete x._old; });
+        s.lessons = s.lessons.filter(l => remap.has(l.slot)).map(l => ({ ...l, slot: remap.get(l.slot) }));
+        s.slots = slots;
+        s.lunchEnabled = form.lunch.checked; s.lunchStart = ls; s.lunchEnd = le;
+        dlg.close(); schedChanged();
+      };
+    });
+}
+
+async function userDialog(u, presetGroup) {
+  const isNew = !u;
+  const taken = new Set(S.users.map(x => x.login));
+  const pass = genPassword();
+  let subjects = [];
+  try { subjects = await rpc("admin_all_subjects", T()); } catch (e) { subjects = []; }
+  const R = new Set(u ? u.roles : ["student"]);
+  const tSubj = new Set(u ? (u.teacher_subjects || []) : []);
+  subjects = [...new Set([...subjects, ...tSubj])].sort((a, b) => a.localeCompare(b, "ru"));
+  const groupChecks = (name, sel) => S.groups.length
+    ? `<div class="checks">${S.groups.map(g => `<label><input type="checkbox" name="${name}" value="${g.id}" ${sel.includes(g.id) ? "checked" : ""}>${esc(g.name)}</label>`).join("")}</div>`
+    : `<p class="small muted">Сначала создай группы.</p>`;
+  const subjChecks = `<div class="checks" id="subjBox">${subjects.map(x => `<label><input type="checkbox" name="tsubj" value="${esc(x)}" ${tSubj.has(x) ? "checked" : ""}>${esc(x)}</label>`).join("") || '<span class="small muted">В расписаниях пока нет предметов — добавь вручную</span>'}</div>`;
+  const RL = { student: "Ученик", headman: "Староста", teacher: "Учитель", curator: "Куратор", admin: "Администратор" };
+  openDialog(`
+    <h2>${isNew ? "Новый аккаунт" : "Аккаунт " + esc(u.login)}</h2>
+    <label class="field">Фамилия и имя<input type="text" name="name" value="${esc(u ? u.full_name : "")}" placeholder="Иванов Иван" required></label>
+    ${isNew ? `<div class="row">
+      <label class="field">Логин<input type="text" name="login" required pattern="[a-z0-9._\\-]{3,40}" placeholder="создастся из имени"></label>
+      <label class="field">Пароль<input type="text" name="pass" value="${pass}" required minlength="6" autocomplete="off"></label>
+    </div>` : ""}
+    <div class="field">Роли — можно несколько
+      <div class="checks" style="margin-top:4px">${ROLE_ORDER.map(r => `<label><input type="checkbox" name="role" value="${r}" ${R.has(r) ? "checked" : ""}>${RL[r]}</label>`).join("")}</div>
+    </div>
+    <div class="role-part" data-for="student"><span class="t">Ученик — в какой группе учится</span>
+      <select name="group">${groupOptions(u ? u.group_id : presetGroup)}</select></div>
+    <div class="role-part" data-for="headman"><span class="t">Староста — какой группы (ведёт её журнал)</span>
+      <select name="hgroup">${groupOptions(u ? u.headman_group : presetGroup)}</select></div>
+    <div class="role-part" data-for="teacher"><span class="t">Учитель — каким группам может выдавать ДЗ</span>
+      ${groupChecks("tgroup", u ? (u.teacher_groups || []) : (presetGroup ? [presetGroup] : []))}
+      <span class="t">…и по каким предметам</span>
+      ${subjChecks}
+      <div style="display:flex;gap:8px"><input type="text" id="newSubj" placeholder="Другой предмет"><button type="button" class="btn" data-addsubj>Добавить</button></div></div>
+    <div class="role-part" data-for="curator"><span class="t">Куратор — какие группы курирует (видит журнал)</span>
+      ${groupChecks("cgroup", u ? (u.curator_groups || []) : (presetGroup ? [presetGroup] : []))}</div>
+    ${isNew ? "" : `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="disabled" ${u.disabled ? "checked" : ""}> Отключить вход (аккаунт сохранится)</label>`}
+    <div class="actions">
+      ${isNew ? "" : `<button class="btn danger left" type="button" data-del>Удалить аккаунт</button>`}
+      <button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">${isNew ? "Создать" : "Сохранить"}</button>
+    </div>`,
+    form => {
+      const roles = () => [...form.querySelectorAll("input[name=role]:checked")].map(x => x.value);
+      const showParts = () => { const r = roles(); form.querySelectorAll(".role-part").forEach(p => p.classList.toggle("hidden", !r.includes(p.dataset.for))); };
+      form.querySelectorAll("input[name=role]").forEach(x => x.onchange = () => {
+        if (x.value === "headman" && x.checked && !form.hgroup.value && form.group.value) form.hgroup.value = form.group.value;
+        showParts();
+      });
+      showParts();
+      form.querySelector("[data-addsubj]").onclick = () => {
+        const inp = form.querySelector("#newSubj"), v = inp.value.trim();
+        if (!v) return;
+        const box = form.querySelector("#subjBox");
+        if (!subjects.some(x => x.toLowerCase() === v.toLowerCase())) {
+          subjects.push(v);
+          if (!box.querySelector("label")) box.innerHTML = "";
+          box.insertAdjacentHTML("beforeend", `<label><input type="checkbox" name="tsubj" value="${esc(v)}" checked>${esc(v)}</label>`);
+        } else box.querySelectorAll("input").forEach(c => { if (c.value.toLowerCase() === v.toLowerCase()) c.checked = true; });
+        inp.value = "";
+      };
+      if (isNew) {
+        let touched = false;
+        form.login.oninput = () => touched = true;
+        form.name.oninput = () => { if (!touched) form.login.value = form.name.value.trim() ? suggestLogin(form.name.value, new Set(taken)) : ""; };
+      }
+      const del = form.querySelector("[data-del]");
+      if (del) del.onclick = async () => {
+        if (!confirm(`Удалить аккаунт ${u.login}? Войти под ним больше не получится, его отметки в журнале и долги удалятся.`)) return;
+        try { await rpc("admin_delete_user", { ...T(), p_id: u.id }); dlg.close(); await reloadPeople(); toast("Аккаунт удалён"); }
+        catch (err) { dlgError(form, err.message); }
+      };
+      form.onsubmit = async e => {
+        e.preventDefault();
+        if (!form.name.value.trim()) return dlgError(form, "Укажи фамилию и имя");
+        const r = roles();
+        if (!r.length) return dlgError(form, "Выбери хотя бы одну роль");
+        const vals = n => [...form.querySelectorAll(`input[name=${n}]:checked`)].map(x => x.value);
+        if (r.includes("teacher") && (!vals("tgroup").length || !vals("tsubj").length)
+            && !confirm("У учителя не выбраны группы или предметы — он пока не сможет выдавать ДЗ. Сохранить так?")) return;
+        const args = {
+          p_full_name: form.name.value, p_roles: r,
+          p_group: form.group.value || null, p_headman_group: form.hgroup.value || null,
+          p_teacher_groups: vals("tgroup"), p_teacher_subjects: vals("tsubj"), p_curator_groups: vals("cgroup")
+        };
+        try {
+          if (isNew) {
+            const login = form.login.value.trim().toLowerCase(), pw = form.pass.value;
+            await rpc("admin_create_user", { ...T(), p_login: login, p_password: pw, ...args });
+            await reloadPeople();
+            showCredentials([{ name: form.name.value.trim(), login, pass: pw }]);
+          } else {
+            await rpc("admin_update_user", { ...T(), p_id: u.id, ...args, p_disabled: form.disabled.checked });
+            dlg.close(); await reloadPeople(); toast("Сохранено");
+          }
+        } catch (err) { dlgError(form, err.message); }
+      };
+    });
+}
+
+function bulkDialog(presetGroup) {
+  openDialog(`
+    <h2>Добавить учеников списком</h2>
+    <p class="muted small">Каждый ученик — с новой строки: «Фамилия Имя» или «Фамилия Имя Отчество». Логины и пароли создадутся сами, их покажут после создания.</p>
+    <label class="field">Группа<select name="group">${groupOptions(presetGroup)}</select></label>
+    <label class="field">Список<textarea name="list" placeholder="Иванов Иван&#10;Петрова Мария&#10;Сидоров Алексей"></textarea></label>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Создать аккаунты</button></div>`,
+    form => form.onsubmit = async e => {
+      e.preventDefault();
+      const names = form.list.value.split("\n").map(x => x.trim().replace(/\s+/g, " ")).filter(Boolean);
+      if (!names.length) return dlgError(form, "Вставь хотя бы одно имя");
+      if (names.length > 200) return dlgError(form, "За раз — не больше 200 человек");
+      const btn = form.querySelector("[type=submit]"); btn.disabled = true;
+      const taken = new Set(S.users.map(x => x.login));
+      const done = [], failed = [];
+      for (const [i, n] of names.entries()) {
+        btn.textContent = `Создаю ${i + 1} из ${names.length}…`;
+        const login = suggestLogin(n, taken), pass = genPassword();
+        try { await rpc("admin_create_user", { ...T(), p_login: login, p_password: pass, p_full_name: n, p_roles: ["student"], p_group: form.group.value || null, p_headman_group: null, p_teacher_groups: [], p_teacher_subjects: [], p_curator_groups: [] }); done.push({ name: n, login, pass }); }
+        catch (err) { failed.push(n + " — " + err.message); }
+      }
+      await reloadPeople();
+      showCredentials(done, failed);
+    });
+}
+
+function credText(list) { return list.map(c => `${c.name}\nЛогин: ${c.login}\nПароль: ${c.pass}`).join("\n\n"); }
+
+function showCredentials(list, failed = []) {
+  const text = credText(list);
+  openDialog(`
+    <h2>${list.length === 1 ? "Аккаунт создан" : "Создано аккаунтов: " + list.length}</h2>
+    <p class="muted small">Передай ученикам логин и пароль. Пароль больше нигде не показывается — если потеряется, нажми «Новый пароль» у ученика.</p>
+    ${failed.length ? `<div class="err">Не создались: ${failed.map(esc).join("; ")}</div>` : ""}
+    ${list.length ? `<div class="cred" id="cred">${esc(text)}</div>` : ""}
+    <div class="actions">
+      ${list.length ? `<button class="btn left" type="button" data-print>Печать</button><button class="btn" type="button" data-copy>Скопировать</button>` : ""}
+      <button class="btn primary" data-close>Готово</button>
+    </div>`,
+    form => {
+      const c = form.querySelector("[data-copy]");
+      if (c) c.onclick = () => navigator.clipboard.writeText(text).then(() => toast("Скопировано"), () => toast("Не удалось скопировать — выдели текст вручную"));
+      const p = form.querySelector("[data-print]");
+      if (p) p.onclick = () => {
+        const w = window.open("", "_blank");
+        if (!w) return toast("Браузер заблокировал окно печати");
+        w.document.write(`<meta charset="utf-8"><title>Логины</title><style>body{font:15px system-ui;margin:24px}div{border:1px dashed #999;padding:12px 14px;margin:0 0 10px;break-inside:avoid;white-space:pre-wrap}</style>` +
+          list.map(x => `<div><b>${esc(x.name)}</b>\nПриложение «Расписание»\nЛогин: ${esc(x.login)}\nПароль: ${esc(x.pass)}</div>`).join(""));
+        w.document.close(); w.focus(); w.print();
+      };
+    });
+}
+
+function resetPassDialog(u) {
+  const pass = genPassword();
+  openDialog(`
+    <h2>Новый пароль для ${esc(u.full_name || u.login)}</h2>
+    <p class="muted small">Старый пароль перестанет работать, ученика выкинет из приложения на всех устройствах.</p>
+    <label class="field">Новый пароль<input type="text" name="pass" value="${pass}" minlength="6" required autocomplete="off"></label>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Поставить пароль</button></div>`,
+    form => form.onsubmit = async e => {
+      e.preventDefault();
+      try {
+        await rpc("admin_set_password", { ...T(), p_id: u.id, p_password: form.pass.value });
+        showCredentials([{ name: u.full_name || u.login, login: u.login, pass: form.pass.value }]);
+      } catch (err) { dlgError(form, err.message); }
+    });
+}
+
+function myPassDialog() {
+  openDialog(`
+    <h2>Сменить мой пароль</h2>
+    <label class="field">Текущий пароль<input type="password" name="old" required autocomplete="current-password"></label>
+    <label class="field">Новый пароль (от 8 символов)<input type="password" name="nw" required minlength="8" autocomplete="new-password"></label>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Сменить пароль</button></div>`,
+    form => form.onsubmit = async e => {
+      e.preventDefault();
+      if (form.nw.value.length < 8) return dlgError(form, "Новый пароль — от 8 символов");
+      try { await rpc("change_password", { ...T(), p_old: form.old.value, p_new: form.nw.value }); dlg.close(); toast("Пароль изменён"); }
+      catch (err) { dlgError(form, err.message); }
+    });
+}
+
+async function reloadPeople() {
+  [S.groups, S.users] = await Promise.all([rpc("admin_list_groups", T()), rpc("admin_list_users", T())]);
+  renderSide(); renderMain();
+}
+
+/* ---------- Импорт / экспорт ---------- */
+function importSchedule(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    let x;
+    try { x = JSON.parse(r.result); } catch (e) { return toast("Это не файл расписания"); }
+    if (x.type !== "raspisanie-schedule" || !Array.isArray(x.slots)) return toast("Это не файл расписания из приложения");
+    const g = S.groups.find(g => g.id === S.groupId);
+    if (!confirm(`Заменить расписание группы «${g.name}» расписанием из файла (${(x.lessons || []).length} занятий)?`)) return;
+    S.sched = normalizeSched(x);
+    renderMain(); schedChanged(); toast("Расписание загружено");
+  };
+  r.readAsText(file);
+}
+function exportSchedule() {
+  const g = S.groups.find(g => g.id === S.groupId);
+  const data = { ...S.sched, type: "raspisanie-schedule", v: 1 };
+  data.lessons = data.lessons.map((l, i) => ({ ...l, id: i + 1 }));
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "raspisanie_" + translit(g.name).slice(0, 30) + ".json";
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ================== Журнал и долги (админ) ================== */
+const GRADES = ["", "5", "4", "3", "2", "зачёт", "незачёт"];
+S.jDate = null; S.jData = null; S.jKey = ""; S.jEdits = {}; S.jMode = "day"; S.jSummary = null; S.debts = null; S.debtsClosed = false;
+const isoDate = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const parseIso = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const stepWeekday = (d, dir) => { let x = addDays(d, dir); while ((x.getDay() + 6) % 7 >= 5) x = addDays(x, dir); return x; };
+const DAY_GEN = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
+
+/** Пары группы на дату — с учётом дня недели и чередования над/под чертой */
+function lessonsOn(sched, date) {
+  const dow = (date.getDay() + 6) % 7 + 1;
+  if (dow > 5) return [];
+  const wt = weekTypeOf(sched, date);
+  const slot = n => sched.slots.find(x => x.num === n);
+  return sched.lessons.filter(l => l.day === dow && (l.week === 0 || l.week === wt) && slot(l.slot))
+    .sort((a, b) => slot(a.slot).start - slot(b.slot).start).map(l => ({ ...l, s: slot(l.slot) }));
+}
+
+async function loadJournalDay() {
+  const key = S.groupId + "|" + isoDate(S.jDate);
+  if (S.jKey === key && S.jData) return;
+  S.jData = null; S.jKey = key; S.jEdits = {};
+  renderJournalBody();
+  try { S.jData = await rpc("journal_day", { ...T(), p_group: S.groupId, p_date: isoDate(S.jDate) }); }
+  catch (e) { S.jData = { error: e.message }; }
+  if (S.jKey === key) renderJournalBody();
+}
+
+function journalShell() {
+  if (!S.jDate) { const t = new Date(); S.jDate = (t.getDay() + 6) % 7 >= 5 ? stepWeekday(t, -1) : t; }
+  return `
+    <div class="weekbar">
+      <div class="seg" role="group" aria-label="Вид журнала">
+        <button class="plain" aria-pressed="${S.jMode === "day"}" data-act="jmode" data-m="day">По дням</button>
+        <button class="plain" aria-pressed="${S.jMode === "summary"}" data-act="jmode" data-m="summary">Сводка</button>
+      </div>
+      ${S.jMode === "day" ? `<div class="toolbar">
+        <button class="btn" data-act="jday" data-d="-1" aria-label="Предыдущий день">‹</button>
+        <input type="date" id="jdate" value="${isoDate(S.jDate)}" style="width:auto">
+        <button class="btn" data-act="jday" data-d="1" aria-label="Следующий день">›</button>
+        <span class="muted">${DAY_GEN[S.jDate.getDay()]}</span>
+      </div>` : ""}
+      <div class="toolbar" style="margin-left:auto"><span id="jstatus" class="status"></span>
+        ${S.jMode === "day" ? `<button class="btn primary" data-act="jsave" id="jsave" disabled>Сохранить</button>` : ""}</div>
+    </div>
+    <div id="jbody"></div>`;
+}
+
+function renderJournalBody() {
+  const el = $("#jbody"); if (!el) return;
+  if (S.jMode === "summary") return renderSummaryBody(el);
+  const ls = lessonsOn(S.sched, S.jDate);
+  if (!ls.length) { el.innerHTML = `<div class="list"><div class="empty-state"><h3>Пар нет</h3><p class="muted">По расписанию группы в этот день занятий нет.</p></div></div>`; return; }
+  if (!S.jData) { el.innerHTML = `<p class="muted">Загружаю журнал…</p>`; return; }
+  if (S.jData.error) { el.innerHTML = `<div class="err">${esc(S.jData.error)}</div>`; return; }
+  const st = S.jData.students;
+  if (!st.length) { el.innerHTML = `<div class="list"><div class="empty-state"><h3>В группе нет учеников</h3><p class="muted">Добавь их во вкладке «Люди».</p></div></div>`; return; }
+  const ent = {};
+  for (const e of S.jData.entries) ent[e.slot + "|" + e.student_id] = e;
+  const val = (slot, sid) => {
+    const k = slot + "|" + sid, ed = S.jEdits[k], e = ent[k] || { absent: false, grade: "" };
+    return ed ? { ...e, ...ed } : e;
+  };
+  el.innerHTML = `
+    <div class="list"><table class="users jtable">
+      <thead><tr><th>Ученик</th>${ls.map(l => `<th>${l.s.num} пара · ${esc(l.subject)}<div class="small muted" style="font-weight:400">${hhmm(l.s.start)}–${hhmm(l.s.end)}</div></th>`).join("")}</tr></thead>
+      <tbody>${st.map(s => `<tr><td>${esc(s.full_name)}</td>${ls.map(l => {
+        const v = val(l.s.num, s.id), k = l.s.num + "|" + s.id;
+        return `<td><div style="display:flex;gap:6px;align-items:center">
+          <button type="button" class="nbtn" data-act="jabs" data-k="${k}" aria-pressed="${!!v.absent}" aria-label="${esc(s.full_name)}: отсутствовал">Н</button>
+          <select data-k="${k}" class="jgrade" aria-label="${esc(s.full_name)}: оценка" style="width:auto;padding:5px 8px">${GRADES.map(g => `<option ${g === (v.grade || "") ? "selected" : ""} value="${g}">${g || "—"}</option>`).join("")}</select>
+        </div></td>`; }).join("")}</tr>`).join("")}</tbody>
+    </table></div>
+    <p class="small muted" style="margin-top:10px">За каждую Н у ученика появляется долг по предмету. Если снять Н — незакрытый долг исчезнет.</p>`;
+  el.querySelectorAll(".jgrade").forEach(sel => sel.onchange = () => { (S.jEdits[sel.dataset.k] ||= {}).grade = sel.value; markJDirty(); });
+}
+
+function markJDirty() {
+  const b = $("#jsave"); if (b) b.disabled = !Object.keys(S.jEdits).length;
+  const s = $("#jstatus"); if (s) { s.className = "status"; s.textContent = Object.keys(S.jEdits).length ? "Есть несохранённые изменения" : ""; }
+}
+
+async function saveJournal() {
+  const ls = lessonsOn(S.sched, S.jDate), st = S.jData.students;
+  const ent = {};
+  for (const e of S.jData.entries) ent[e.slot + "|" + e.student_id] = e;
+  const btn = $("#jsave"); btn.disabled = true;
+  const status = $("#jstatus"); status.className = "status saving"; status.textContent = "Сохраняю…";
+  try {
+    for (const l of ls) {
+      const keys = st.map(s => l.s.num + "|" + s.id);
+      if (!keys.some(k => S.jEdits[k])) continue;
+      const cur = k => ({ ...(ent[k] || { absent: false, grade: "" }), ...(S.jEdits[k] || {}) });
+      if (keys.some(k => S.jEdits[k] && "absent" in S.jEdits[k]))
+        await rpc("journal_set", { ...T(), p_group: S.groupId, p_date: isoDate(S.jDate), p_slot: l.s.num, p_subject: l.subject,
+          p_entries: st.map(s => ({ student_id: s.id, absent: !!cur(l.s.num + "|" + s.id).absent })) });
+      if (keys.some(k => S.jEdits[k] && "grade" in S.jEdits[k]))
+        await rpc("grades_set", { ...T(), p_group: S.groupId, p_date: isoDate(S.jDate), p_slot: l.s.num, p_subject: l.subject,
+          p_entries: st.map(s => ({ student_id: s.id, grade: cur(l.s.num + "|" + s.id).grade || "" })) });
+    }
+    S.jData = null; S.jKey = ""; S.debts = null; S.jSummary = null;
+    await loadJournalDay();
+    const s2 = $("#jstatus"); if (s2) { s2.className = "status saved"; s2.textContent = "Журнал сохранён"; }
+  } catch (e) {
+    status.className = "status error"; status.textContent = "Не сохранилось: " + e.message; btn.disabled = false;
+  }
+}
+
+async function renderSummaryBody(el) {
+  if (!S.jSummary || S.jSummary.group !== S.groupId) {
+    el.innerHTML = `<p class="muted">Считаю сводку…</p>`;
+    const to = new Date(), from = addDays(to, -150);
+    try { S.jSummary = { group: S.groupId, ...(await rpc("journal_records", { ...T(), p_group: S.groupId, p_from: isoDate(from), p_to: isoDate(to) })) }; }
+    catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    if (S.jMode !== "summary" || !$("#jbody")) return;
+  }
+  const { students, entries } = S.jSummary;
+  if (!students.length) { el.innerHTML = `<div class="list"><div class="empty-state"><h3>В группе нет учеников</h3></div></div>`; return; }
+  const subjects = [...new Set(entries.map(e => e.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+  const by = {};
+  for (const e of entries) {
+    const k = e.student_id + "|" + e.subject;
+    (by[k] ||= { abs: 0, grades: [] });
+    if (e.absent) by[k].abs++;
+    if (e.grade) by[k].grades.push(e.grade);
+  }
+  el.innerHTML = `
+    <p class="small muted" style="margin-bottom:10px">За последние 5 месяцев. В клетке — оценки и количество Н по предмету.</p>
+    <div class="list"><table class="users">
+      <thead><tr><th>Ученик</th><th>Н всего</th>${subjects.map(s => `<th>${esc(s)}</th>`).join("")}</tr></thead>
+      <tbody>${students.map(st => {
+        const total = entries.filter(e => e.student_id === st.id && e.absent).length;
+        return `<tr><td>${esc(st.full_name)}</td><td>${total ? `<span class="badge off">${total}</span>` : '<span class="muted">0</span>'}</td>${subjects.map(sub => {
+          const x = by[st.id + "|" + sub];
+          return `<td class="small">${x ? `${esc(x.grades.join(" ")) || '<span class="muted">—</span>'}${x.abs ? ` <span class="badge off">Н ${x.abs}</span>` : ""}` : '<span class="muted">—</span>'}</td>`;
+        }).join("")}</tr>`; }).join("")}</tbody>
+    </table></div>`;
+}
+
+/* ---------- Долги ---------- */
+function debtsShell() {
+  return `<div class="weekbar"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="dclosed" ${S.debtsClosed ? "checked" : ""}> Показывать закрытые</label></div><div id="dbody"><p class="muted">Загружаю долги…</p></div>`;
+}
+async function renderDebtsBody() {
+  const el = $("#dbody"); if (!el) return;
+  if (!S.debts || S.debts.group !== S.groupId) {
+    try { S.debts = { group: S.groupId, list: await rpc("admin_list_debts", { ...T(), p_group: S.groupId }) }; }
+    catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  }
+  const list = S.debts.list.filter(d => S.debtsClosed || !d.closed);
+  if (!list.length) { el.innerHTML = `<div class="list"><div class="empty-state"><h3>Долгов нет</h3><p class="muted">Долги появляются, когда староста отмечает Н в журнале.</p></div></div>`; return; }
+  el.innerHTML = `<div class="list"><table class="users">
+    <thead><tr><th>Ученик</th><th>Предмет</th><th>Пропуск</th><th>Задание</th><th></th></tr></thead>
+    <tbody>${list.map(d => `<tr style="${d.closed ? "opacity:.6" : ""}">
+      <td>${esc(d.student_name)}${d.closed ? ' <span class="badge r-curator">закрыт</span>' : ""}</td>
+      <td>${esc(d.subject)}</td>
+      <td class="small">${ddmm(parseIso(d.date))}${d.slot > 0 ? ", " + d.slot + " пара" : ""}</td>
+      <td class="small">${d.task ? esc(d.task) + (d.task_by ? `<div class="muted">${esc(d.task_by)}</div>` : "") : '<span class="muted">не выдано</span>'}</td>
+      <td class="act">
+        <button class="btn small" data-act="dclose" data-id="${d.id}" data-c="${d.closed ? 0 : 1}">${d.closed ? "Открыть снова" : "Закрыть"}</button>
+        <button class="btn small danger" data-act="dremove" data-id="${d.id}">Убрать Н</button>
+      </td></tr>`).join("")}</tbody></table></div>
+    <p class="small muted" style="margin-top:10px">«Убрать Н» снимает отметку в журнале и полностью удаляет долг — например, если ученик был, а Н поставили по ошибке.</p>`;
+}
+
+function bindJournalDate() {
+  const d = $("#jdate");
+  if (d) d.onchange = () => { if (d.value) { if (Object.keys(S.jEdits).length && !confirm("Изменения не сохранены. Перейти без сохранения?")) { d.value = isoDate(S.jDate); return; } S.jDate = parseIso(d.value); S.jData = null; renderMain(); } };
+}
+
+/* ================== События ================== */
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-act],[data-group],[data-tab],[data-cell]");
+  if (!t || S.gate || dlg.contains(t)) return;
+  const side = $("#side");
+  try {
+    if (t.dataset.cell) { const [d, sl] = t.dataset.cell.split(":").map(Number); return cellDialog(d, sl); }
+    if (t.dataset.tab) { S.groupTab = t.dataset.tab; return renderMain(); }
+    if (t.classList.contains("nav-item") && t.dataset.group) {
+      side.classList.remove("open"); S.groupTab = "schedule";
+      await openGroup(t.dataset.group, true); renderSide(); renderMain(); return;
+    }
+    const id = t.dataset.id, u = id && S.users.find(x => x.id === id);
+    switch (t.dataset.act) {
+      case "menu": side.classList.toggle("open"); break;
+      case "users": side.classList.remove("open"); S.view = "users"; renderSide(); renderMain(); break;
+      case "new-group": groupDialog(null); break;
+      case "rename-group": groupDialog(S.groups.find(g => g.id === S.groupId)); break;
+      case "delete-group": {
+        const g = S.groups.find(g => g.id === S.groupId);
+        if (!confirm(`Удалить группу «${g.name}» вместе с расписанием? Аккаунты учеников останутся, но без группы.`)) return;
+        await rpc("admin_delete_group", { ...T(), p_id: g.id });
+        S.groupId = null; S.sched = null; await loadAll(); toast("Группа удалена"); break;
+      }
+      case "week": {
+        const w = +t.dataset.w; S.sched.refMonday = epochDay(mondayOf(weekRef())); S.sched.refType = w;
+        $("#tabbody").querySelectorAll("[data-act=week]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.w === w));
+        schedChanged(); break;
+      }
+      case "bells": bellsDialog(); break;
+      case "import": { const f = $("#importFile"); f.value = ""; f.onchange = () => f.files[0] && importSchedule(f.files[0]); f.click(); break; }
+      case "export": exportSchedule(); break;
+      case "print": window.print(); break;
+      case "jmode": S.jMode = t.dataset.m; renderMain(); break;
+      case "jday": {
+        if (Object.keys(S.jEdits).length && !confirm("Изменения не сохранены. Перейти без сохранения?")) break;
+        S.jDate = stepWeekday(S.jDate, +t.dataset.d); S.jData = null; renderMain(); break;
+      }
+      case "jabs": {
+        const k = t.dataset.k, on = t.getAttribute("aria-pressed") !== "true";
+        t.setAttribute("aria-pressed", on); (S.jEdits[k] ||= {}).absent = on; markJDirty(); break;
+      }
+      case "jsave": await saveJournal(); break;
+      case "dclose": await rpc("debt_close", { ...T(), p_id: t.dataset.id, p_closed: t.dataset.c === "1" }); S.debts = null; renderDebtsBody(); toast(t.dataset.c === "1" ? "Долг закрыт" : "Долг снова открыт"); break;
+      case "dremove": {
+        if (!confirm("Убрать Н? Отметка в журнале снимется, долг удалится насовсем.")) break;
+        await rpc("admin_remove_absence", { ...T(), p_debt: t.dataset.id }); S.debts = null; S.jData = null; S.jKey = ""; S.jSummary = null; renderDebtsBody(); toast("Н убрана");
+        break;
+      }
+      case "new-user": userDialog(null, t.dataset.group || null); break;
+      case "bulk-users": bulkDialog(t.dataset.group || null); break;
+      case "edit-user": userDialog(u); break;
+      case "reset-pass": resetPassDialog(u); break;
+      case "my-pass": myPassDialog(); break;
+      case "logout": await rpc("logout", T()).catch(() => {}); logoutLocal(); break;
+    }
+  } catch (err) { toast(err.message); }
+});
+
+boot();
+</script>
+</body>
+</html>

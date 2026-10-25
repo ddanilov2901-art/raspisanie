@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Расписание</title>
+<meta name="description" content="Расписание, ДЗ, Н-ки и журнал группы">
+<meta name="theme-color" content="#F3F4F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Расписание">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<script>
+  // Сервер — тот же, что у Android-приложения и админки
+  window.RASP_CONFIG = {
+    url: "https://pcvjwvsswkakgamuzogm.supabase.co",
+    key: "sb_publishable_pjUbAZ1IiOUqdQp6UUdi5g_qQVSiPNB"
+  };
+</script>
+<style>
+:root {
+  --bg: #F3F4F8; --card: #FFFFFF; --text: #1B1E27; --sub: #6B7180; --line: #E4E6EE;
+  --primary: #3B5BDB; --primary-soft: #E7ECFF;
+  --over: #1C6FC4; --over-soft: #DDEEFF; --under: #B4590A; --under-soft: #FFEBD6;
+  --danger: #D64545; --danger-soft: #FDE4E4; --ok: #1E8E4E; --ok-soft: #DDF5E6; --lunch: #FFF5D9;
+  --shadow: 0 1px 2px rgba(20, 24, 40, .06);
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111318; --card: #1C1F27; --text: #E9EAF0; --sub: #9AA0AE; --line: #2C303B;
+    --primary: #8EA2FF; --primary-soft: #262D4D;
+    --over: #7CC4FF; --over-soft: #1B3247; --under: #FFB86B; --under-soft: #43301B;
+    --danger: #FF7A7A; --danger-soft: #4A2226; --ok: #6FD69A; --ok-soft: #1D3B2A; --lunch: #2E2A1C;
+    --shadow: none; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-size: 16px; line-height: 1.4; color: var(--text); font-variant-numeric: tabular-nums;
+  -webkit-text-size-adjust: 100%;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hidden { display: none !important; }
+.sub { color: var(--sub); }
+.small { font-size: 14px; }
+
+/* ---------- Каркас ---------- */
+.top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: calc(var(--safe-t) + 12px) 20px 8px; display: flex; align-items: center; }
+.top h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; flex: 1; }
+.gear { width: 44px; height: 44px; border: 0; background: transparent; font-size: 22px; color: var(--sub); border-radius: 22px; }
+main { padding: 4px 16px calc(96px + var(--safe-b)); max-width: 640px; margin: 0 auto; }
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; background: var(--card); border-top: 1px solid var(--line); padding: 6px 6px calc(8px + var(--safe-b)); }
+nav.tabs button { flex: 1; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; color: var(--sub); font-size: 12px; position: relative; min-width: 0; }
+nav.tabs .ic { font-size: 19px; padding: 2px 14px; border-radius: 16px; opacity: .75; }
+nav.tabs button[aria-current=page] { color: var(--primary); font-weight: 600; }
+nav.tabs button[aria-current=page] .ic { background: var(--primary-soft); opacity: 1; }
+.badge { position: absolute; top: 0; left: calc(50% + 8px); min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--card); }
+
+/* ---------- Карточки ---------- */
+.card { background: var(--card); border-radius: 18px; padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); }
+button.card { display: block; width: 100%; text-align: left; border: 0; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+.sect { font-size: 13px; font-weight: 600; color: var(--sub); padding: 12px 4px 8px; letter-spacing: .02em; }
+.sect.danger { color: var(--danger); }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px 4px; border-radius: 20px; white-space: nowrap; }
+.p-over { background: var(--over-soft); color: var(--over); }
+.p-under { background: var(--under-soft); color: var(--under); }
+.p-primary { background: var(--primary-soft); color: var(--primary); }
+.p-ok { background: var(--ok-soft); color: var(--ok); }
+.p-danger { background: var(--danger-soft); color: var(--danger); }
+.btn { border: 0; border-radius: 14px; padding: 12px 16px; font-weight: 600; background: var(--primary-soft); color: var(--primary); text-align: center; }
+.btn.primary { background: var(--primary); color: #fff; }
+.btn.ok { background: var(--ok-soft); color: var(--ok); }
+.btn.full { display: block; width: 100%; margin: 2px 0 12px; }
+.btn:disabled { opacity: .5; }
+.link { border: 0; background: transparent; color: var(--primary); font-weight: 600; padding: 6px 4px; }
+.link.danger { color: var(--danger); }
+.arrow { width: 40px; height: 40px; border-radius: 20px; border: 0; background: var(--primary-soft); color: var(--primary); font-size: 22px; font-weight: 700; line-height: 1; }
+.empty { text-align: center; padding: 22px 16px; }
+.empty h3 { margin: 0 0 6px; font-size: 17px; }
+.notice { background: var(--primary-soft); color: var(--text); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+.notice.warn { background: var(--under-soft); }
+
+/* День */
+.day-title { font-size: 24px; font-weight: 700; }
+.lesson { display: flex; gap: 12px; align-items: flex-start; }
+.lesson .left { width: 54px; flex: none; text-align: center; }
+.num { width: 34px; height: 34px; border-radius: 17px; background: var(--primary-soft); color: var(--primary); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.current .num { background: var(--primary); color: #fff; }
+.card.current { box-shadow: inset 0 0 0 1.5px var(--primary); }
+.card.past { opacity: .55; }
+.t1 { font-size: 13px; font-weight: 600; margin-top: 6px; }
+.t2 { font-size: 12px; color: var(--sub); }
+.subj { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.meta { font-size: 14px; color: var(--sub); margin-top: 2px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lunch { background: var(--lunch); border-radius: 16px; padding: 10px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+.sep { height: 1px; background: var(--line); margin: 10px 0 4px; }
+
+/* ДЗ */
+.hw { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0 2px; }
+.box { width: 24px; height: 24px; flex: none; border-radius: 7px; border: 1.5px solid var(--sub); background: transparent; color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0; margin-top: 1px; }
+.box[aria-checked=true] { background: var(--ok); border-color: var(--ok); }
+.hw .h { font-size: 13px; font-weight: 600; color: var(--primary); }
+.hw .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
+.hw.done .tx { color: var(--sub); text-decoration: line-through; }
+.chip { display: flex; align-items: center; gap: 8px; background: var(--primary-soft); color: var(--primary); border-radius: 10px; padding: 7px 10px; margin-top: 6px; border: 0; width: 100%; text-align: left; font-size: 14px; }
+.chip span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip .x { flex: none; color: var(--sub); font-weight: 700; padding: 0 4px; }
+.tappable { cursor: pointer; }
+
+/* Чипы дней / сегменты */
+.days { display: flex; gap: 6px; margin: 4px 0 10px; }
+.days button, .seg button { flex: 1; border: 0; border-radius: 14px; padding: 8px 0; background: var(--card); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
+.days button[aria-pressed=true], .seg button[aria-pressed=true] { background: var(--primary); color: #fff; }
+.days small { display: block; font-weight: 500; opacity: .8; }
+.seg { display: flex; gap: 8px; margin-bottom: 10px; }
+.groupchip { width: 100%; border: 0; background: var(--primary-soft); color: var(--primary); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; text-align: left; }
+.groupchip b { font-size: 16px; }
+.groupchip .sub { font-size: 14px; }
+
+/* Долги */
+.task { background: var(--bg); border-radius: 12px; padding: 9px 12px; margin-top: 10px; }
+.task.has { background: var(--over-soft); }
+.task .lbl { font-size: 12px; font-weight: 600; color: var(--over); }
+.debt-head { display: flex; gap: 10px; align-items: center; }
+.big { font-size: 22px; font-weight: 700; }
+
+/* Журнал */
+.att { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.att:last-child { border-bottom: 0; }
+.att .nm { flex: 1; min-width: 0; }
+.att.abs .nm { color: var(--danger); }
+.nbtn { width: 44px; height: 36px; border-radius: 10px; border: 1.5px solid var(--line); background: transparent; color: var(--sub); font-weight: 700; }
+.nbtn[aria-pressed=true] { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+/* Формы и листы */
+dialog.sheet { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 640px; max-height: 92vh; border-radius: 22px 22px 0 0; background: var(--card); color: var(--text); }
+dialog.sheet::backdrop { background: rgba(10, 12, 24, .45); }
+@media (min-width: 700px) { dialog.sheet { margin: auto; border-radius: 22px; } }
+.sheet form { padding: 18px 18px calc(18px + var(--safe-b)); display: flex; flex-direction: column; gap: 4px; }
+.sheet h2 { margin: 0 0 4px; font-size: 20px; }
+.lbl2 { font-size: 13px; font-weight: 600; color: var(--sub); margin: 10px 2px 4px; }
+.sheet input[type=text], .sheet input[type=password], .sheet input[type=date], .sheet select, .sheet textarea, .login input {
+  width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 12px; padding: 11px 12px; font-size: 16px;
+}
+.sheet textarea { min-height: 96px; resize: vertical; }
+.sheet .actions { display: flex; gap: 8px; margin-top: 14px; }
+.sheet .actions .btn { flex: 1; }
+.err { background: var(--danger-soft); color: var(--danger); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 8px; }
+.sheet select { -webkit-appearance: none; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--sub) 50%), linear-gradient(135deg, var(--sub) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+select.grade { width: 104px !important; padding: 7px 26px 7px 10px !important; }
+
+/* Вход */
+.login { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: calc(var(--safe-t) + 24px) 20px calc(var(--safe-b) + 24px); max-width: 440px; margin: 0 auto; }
+.login .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.login .logo img { width: 52px; height: 52px; border-radius: 13px; }
+.login h1 { margin: 0; font-size: 28px; }
+.login label { display: block; font-size: 13px; font-weight: 600; color: var(--sub); margin: 12px 2px 4px; }
+.login input { background: var(--card); }
+
+#toast { position: fixed; left: 50%; bottom: calc(86px + var(--safe-b)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; max-width: calc(100vw - 32px); text-align: center; }
+#toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog class="sheet" id="sheet"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+/* ================== Утилиты ================== */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const LS = {
+  get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} },
+  json(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+};
+const hhmm = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const DAY_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const DAY_FULL = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
+const DAY_TITLE = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+const MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const epochDay = d => Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const parseIso = s => { const [y, m, d] = String(s).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+const sameDay = (a, b) => iso(a) === iso(b);
+const dow = d => (d.getDay() + 6) % 7 + 1;           // 1 = Пн … 7 = Вс
+const mondayOf = d => addDays(dayStart(d), -(dow(d) - 1));
+const ddmm = d => String(d.getDate()).padStart(2, "0") + "." + String(d.getMonth() + 1).padStart(2, "0");
+const dateLong = d => d.getDate() + " " + MONTHS[d.getMonth()];
+const stepWeekday = (d, dir) => { let x = addDays(d, dir); while (dow(x) > 5) x = addDays(x, dir); return x; };
+function relDay(d) {
+  const t = dayStart(new Date());
+  if (sameDay(d, t)) return "Сегодня";
+  if (sameDay(d, addDays(t, 1))) return "Завтра";
+  if (sameDay(d, addDays(t, 2))) return "Послезавтра";
+  if (sameDay(d, addDays(t, -1))) return "Вчера";
+  return DAY_TITLE[d.getDay()];
+}
+function plural(n, a, b, c) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c); }
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
+
+/* ================== Расписание (та же логика, что в Android) ================== */
+function normSched(x) {
+  const s = Object.assign({ lunchEnabled: true, lunchStart: 700, lunchEnd: 740, refMonday: 0, refType: 0, slots: [], lessons: [] }, x || {});
+  s.slots = (s.slots || []).map(v => ({ num: +v.num, start: +v.start, end: +v.end })).sort((a, b) => a.start - b.start);
+  s.lessons = (s.lessons || []).map(l => ({ day: +l.day, slot: +l.slot, subject: l.subject || "", kind: l.kind || "", room: l.room || "", teacher: l.teacher || "", week: +l.week || 0 }));
+  return s;
+}
+const slotOf = (s, n) => s.slots.find(x => x.num === n);
+function weekTypeOf(s, d) {
+  if (!s.refType) return 1;
+  const weeks = Math.round((epochDay(mondayOf(d)) - s.refMonday) / 7);
+  return ((weeks % 2) + 2) % 2 === 0 ? s.refType : (s.refType === 1 ? 2 : 1);
+}
+const weekName = t => t === 1 ? "Над чертой" : t === 2 ? "Под чертой" : "Каждую неделю";
+function lessonsOn(s, d) {
+  if (dow(d) > 5) return [];
+  const wt = weekTypeOf(s, d);
+  return s.lessons.filter(l => l.day === dow(d) && (l.week === 0 || l.week === wt) && slotOf(s, l.slot))
+    .sort((a, b) => slotOf(s, a.slot).start - slotOf(s, b.slot).start);
+}
+const endOfDay = (s, d) => lessonsOn(s, d).reduce((m, l) => Math.max(m, slotOf(s, l.slot).end), -1);
+/** Сегодня — пока пары не кончились, иначе ближайший учебный день с парами */
+function dayToShow(s, now) {
+  const today = dayStart(now), minute = now.getHours() * 60 + now.getMinutes();
+  if (dow(today) <= 5 && endOfDay(s, today) > minute) return today;
+  let d = addDays(today, 1);
+  for (let i = 0; i < 21; i++, d = addDays(d, 1)) if (dow(d) <= 5 && lessonsOn(s, d).length) return d;
+  d = addDays(today, 1);
+  while (dow(d) > 5) d = addDays(d, 1);
+  return d;
+}
+/** Ближайшие занятия по предмету (сегодняшние — только если пара ещё не началась) */
+function upcoming(s, subject, now, max) {
+  const out = [], minute = now.getHours() * 60 + now.getMinutes();
+  let d = dayStart(now);
+  for (let i = 0; i < 70 && out.length < max; i++, d = addDays(d, 1)) {
+    for (const l of lessonsOn(s, d)) {
+      if (l.subject.trim().toLowerCase() !== subject.trim().toLowerCase()) continue;
+      const sl = slotOf(s, l.slot);
+      if (i === 0 && sl.start <= minute) continue;
+      out.push({ date: d, slot: sl, lesson: l });
+      if (out.length >= max) break;
+    }
+  }
+  return out;
+}
+
+/* ================== Сервер ================== */
+const CFG = window.RASP_CONFIG;
+async function rpc(fn, args = {}) {
+  let res;
+  try {
+    res = await fetch(CFG.url.replace(/\/+$/, "") + "/rest/v1/rpc/" + fn, {
+      method: "POST",
+      headers: Object.assign({ "Content-Type": "application/json", apikey: CFG.key }, CFG.key.startsWith("eyJ") ? { Authorization: "Bearer " + CFG.key } : {}),
+      body: JSON.stringify(args)
+    });
+  } catch (e) { const er = new Error("Нет связи с сервером. Проверь интернет."); er.offline = true; throw er; }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+  if (!res.ok) {
+    let msg = (data && data.message) || ("Ошибка сервера " + res.status);
+    const er = new Error(msg.replace(/^[A-Z_]+: /, ""));
+    er.auth = /^AUTH: сессия|^DISABLED/.test(msg);
+    throw er;
+  }
+  if (data && typeof data === "object" && !Array.isArray(data) && data.error) throw new Error(String(data.error).replace(/^[A-Z_]+: /, ""));
+  return data;
+}
+const call = (fn, args = {}) => rpc(fn, { p_token: S.token, ...args });
+
+/* ================== Состояние ================== */
+const S = {
+  token: LS.get("rasp_token"),
+  data: LS.json("rasp_data", null),     // последний ответ app_sync — работает и без интернета
+  lastSync: +LS.get("rasp_sync", 0),
+  tab: "home", browse: null, schedDay: Math.min(dow(new Date()), 5),
+  ctx: LS.get("rasp_ctx"), jGroup: null, jDate: null, jMode: "day", jCache: {}, summary: null,
+  showDone: false, showClosed: false, syncing: false
+};
+const done = LS.json("rasp_done", {});    // личные отметки «сделал»
+const saveDone = () => LS.set("rasp_done", JSON.stringify(done));
+
+/* ---------- Роли (те же правила, что на сервере) ---------- */
+const U = () => S.data ? S.data.user : null;
+const has = r => !!U() && (U().roles || []).includes(r);
+const isAdmin = () => has("admin");
+const groups = () => S.data ? S.data.groups : [];
+const group = id => groups().find(g => g.id === id);
+const gname = id => (group(id) || {}).name || "";
+const isStudent = () => has("student") && !!U().group_id;
+const teaches = gid => isAdmin() || (has("teacher") && (U().teacher_groups || []).includes(gid));
+const canTeach = (gid, subj) => isAdmin() || (teaches(gid) && (U().teacher_subjects || []).some(t => t.trim().toLowerCase() === String(subj || "").trim().toLowerCase()));
+const isHeadman = gid => isAdmin() || (has("headman") && U().headman_group === gid);
+const canViewJournal = gid => isHeadman(gid) || (has("curator") && (U().curator_groups || []).includes(gid));
+const canOpenJournal = gid => canViewJournal(gid) || teaches(gid);
+const journalGroups = () => groups().filter(g => canOpenJournal(g.id));
+const teachingGroups = () => groups().filter(g => teaches(g.id));
+const anyTeaching = () => teachingGroups().length > 0;
+const schedCache = {};
+function sched(gid) {
+  const g = group(gid);
+  if (!g) return normSched(null);
+  const key = gid + g.updated_at;
+  return schedCache[key] || (schedCache[key] = normSched(g.schedule && g.schedule.slots ? g.schedule : null));
+}
+const subjectsFor = gid => isAdmin() ? [...new Set(sched(gid).lessons.map(l => l.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"))
+  : (teaches(gid) ? (U().teacher_subjects || []).slice() : []);
+function defaultGroup() {
+  const u = U(); if (!u) return null;
+  for (const id of [isStudent() ? u.group_id : null, has("headman") ? u.headman_group : null, ...(u.teacher_groups || []), ...(u.curator_groups || [])])
+    if (id && group(id)) return id;
+  return groups()[0] ? groups()[0].id : null;
+}
+const ctx = () => (S.ctx && group(S.ctx)) ? S.ctx : defaultGroup();
+const hwOf = gid => (S.data ? S.data.homework : []).filter(h => h.group_id === gid);
+const debts = () => S.data ? S.data.debts : [];
+function badgeCount() {
+  const me = U() ? U().id : null;
+  let own = 0, toDo = 0;
+  for (const d of debts()) {
+    if (d.closed) continue;
+    if (d.student_id === me) own++;
+    else if (canTeach(d.group_id, d.subject) && !d.task) toDo++;
+  }
+  return isStudent() ? own : toDo;
+}
+function roleTitle() {
+  return [["student", "ученик"], ["headman", "староста"], ["teacher", "учитель"], ["curator", "куратор"], ["admin", "администратор"]]
+    .filter(([r]) => has(r)).map(([, n]) => n).join(", ");
+}
+
+/* ================== Синхронизация ================== */
+async function sync(manual) {
+  if (!S.token || S.syncing) return;
+  S.syncing = true;
+  if (manual) toast("Обновляю…");
+  try {
+    const d = await call("app_sync");
+    S.data = d; S.lastSync = Date.now();
+    LS.set("rasp_data", JSON.stringify(d)); LS.set("rasp_sync", String(S.lastSync));
+    if (S.tab === "journal" && !journalGroups().length) S.tab = "home";
+    if (manual) toast("Обновлено ✓");
+  } catch (e) {
+    if (e.auth) { logoutLocal(); toast("Нужно войти заново"); }
+    else if (manual) toast(e.message);
+  } finally {
+    S.syncing = false;
+    render();
+  }
+}
+function syncedAgo() {
+  if (!S.lastSync) return "ещё не загружено";
+  const m = Math.floor((Date.now() - S.lastSync) / 60000);
+  return m < 1 ? "только что" : m < 60 ? m + " мин назад" : m < 1440 ? Math.floor(m / 60) + " ч назад" : Math.floor(m / 1440) + " дн назад";
+}
+function logoutLocal() {
+  S.token = null; S.data = null; S.lastSync = 0;
+  ["rasp_token", "rasp_data", "rasp_sync", "rasp_ctx"].forEach(k => LS.set(k, null));
+  S.tab = "home";
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && S.token && Date.now() - S.lastSync > 2 * 60000) sync(false);
+});
+
+/* ================== Отрисовка ================== */
+const TABS = [["home", "📅", "Сегодня"], ["sched", "🗓", "Расписание"], ["hw", "📝", "ДЗ"], ["debts", "⚠", "Н-ки"], ["journal", "📒", "Журнал"]];
+const TITLES = { home: "Пары", sched: "Расписание", hw: "Домашка", debts: "Н-ки", journal: "Журнал", settings: "Настройки" };
+
+function render() {
+  const app = $("#app");
+  if (!S.token) { app.innerHTML = loginHtml(); bindLogin(); return; }
+  const tabs = TABS.filter(t => t[0] !== "journal" || journalGroups().length);
+  if (!tabs.some(t => t[0] === S.tab) && S.tab !== "settings") S.tab = "home";
+  const b = badgeCount();
+  const y = window.scrollY;
+  app.innerHTML = `
+    <header class="top"><h1>${TITLES[S.tab]}</h1><button class="gear" data-act="settings" aria-label="Настройки">⚙</button></header>
+    <main id="main">${screen()}</main>
+    <nav class="tabs" aria-label="Разделы">${tabs.map(([id, ic, lb]) => `
+      <button data-tab="${id}" ${S.tab === id ? 'aria-current="page"' : ""}><span class="ic" aria-hidden="true">${ic}</span>${lb}
+      ${id === "debts" && b > 0 && S.tab !== "debts" ? `<span class="badge" aria-label="${b} ${plural(b, "долг", "долга", "долгов")}">${b}</span>` : ""}</button>`).join("")}</nav>`;
+  if (S.keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
+  S.keepScroll = false;
+  afterRender();
+}
+const rerender = () => { S.keepScroll = true; render(); };
+
+function screen() {
+  if (!S.data) return `<div class="card empty"><h3>Загружаю данные…</h3><p class="sub">Нужен интернет при первом входе.</p></div>`;
+  switch (S.tab) {
+    case "sched": return schedHtml();
+    case "hw": return hwHtml();
+    case "debts": return debtsHtml();
+    case "journal": return journalHtml();
+    case "settings": return settingsHtml();
+    default: return homeHtml();
+  }
+}
+
+function groupChipHtml(current, list, act) {
+  if (!current) return "";
+  const many = list.length > 1;
+  return `<button class="groupchip" ${many ? `data-act="${act}"` : "disabled"}><span class="sub">Группа</span><b>${esc(gname(current))}</b><span class="grow"></span>${many ? '<span class="sub">сменить ▾</span>' : ""}</button>`;
+}
+
+/* ---------- Сегодня ---------- */
+function homeHtml() {
+  const gid = ctx();
+  if (!gid) return emptyHtml("Тебя ещё не добавили в группу", "Как только администратор добавит — здесь появится расписание.", true);
+  const s = sched(gid), now = new Date(), today = dayStart(now), nowMin = now.getHours() * 60 + now.getMinutes();
+  const auto = !S.browse, d = auto ? dayToShow(s, now) : S.browse;
+  const wt = weekTypeOf(s, d);
+  let h = groups().length > 1 ? groupChipHtml(gid, groups(), "pick-ctx") : "";
+
+  // Вместо напоминания-будильника: ДЗ на завтра
+  if (isStudent() && gid === U().group_id) {
+    const tm = epochDay(addDays(today, 1));
+    const open = hwOf(gid).filter(x => epochDay(parseIso(x.date)) === tm && !done[x.id]);
+    if (open.length) h += `<button class="notice warn card" data-tab="hw" style="text-align:left;border:0;width:100%">🔔 На завтра ${open.length === 1 ? "есть ДЗ" : "ДЗ: " + open.length + " " + plural(open.length, "задание", "задания", "заданий")} — ${esc(open.map(x => x.subject).join(", "))}</button>`;
+  }
+
+  let note = "";
+  if (auto && !sameDay(d, today) && dow(today) <= 5 && lessonsOn(s, today).length) note = "Пары на сегодня закончились — показываю следующий учебный день";
+  else if (auto && !sameDay(d, today) && dow(today) > 5) note = "Сегодня выходной — показываю ближайший учебный день";
+  h += `<div class="card">
+    <div class="row"><div class="grow"><div class="day-title">${relDay(d)}</div><div class="sub">${DAY_FULL[d.getDay()]}, ${dateLong(d)}</div></div>
+      <button class="arrow" data-act="day" data-d="-1" aria-label="Предыдущий день">‹</button><button class="arrow" data-act="day" data-d="1" aria-label="Следующий день">›</button></div>
+    <div class="row" style="margin-top:10px"><span class="pill ${wt === 1 ? "p-over" : "p-under"}">${weekName(wt)}</span><span class="grow"></span>
+      ${auto ? "" : '<button class="link" data-act="day-auto">К актуальному дню</button>'}</div>
+    ${note ? `<div class="sub small" style="margin-top:10px">${note}</div>` : ""}</div>`;
+
+  if (!s.lessons.length) return h + emptyHtml("Расписание группы пока пустое", "Администратор ещё не заполнил его.", true);
+  const list = lessonsOn(s, d);
+  if (!list.length) return h + `<div class="card empty"><div style="font-size:34px">🎉</div><h3>Пар нет</h3></div>`;
+  const isToday = sameDay(d, today);
+  const first = slotOf(s, list[0].slot).start, last = endOfDay(s, d);
+  let lunchShown = !(s.lunchEnabled && s.lunchStart >= first && s.lunchEnd <= last);
+  const hws = hwOf(gid).filter(x => epochDay(parseIso(x.date)) === epochDay(d));
+  for (const l of list) {
+    const sl = slotOf(s, l.slot);
+    if (!lunchShown && sl.start >= s.lunchStart) { h += lunchHtml(s, isToday, nowMin); lunchShown = true; }
+    h += lessonHtml(l, sl, d, isToday, nowMin, hws.filter(x => x.slot === l.slot || (x.slot < 0 && x.subject.toLowerCase() === l.subject.toLowerCase())), gid);
+  }
+  if (!lunchShown) h += lunchHtml(s, isToday, nowMin);
+  const loose = hws.filter(x => !list.some(l => x.slot === l.slot || (x.slot < 0 && x.subject.toLowerCase() === l.subject.toLowerCase())));
+  if (loose.length) h += `<div class="sect">Задания на этот день</div><div class="card">${loose.map(x => hwLine(x, true, false)).join("")}</div>`;
+  if (teaches(gid)) h += `<button class="btn full" data-act="hw-new" data-date="${iso(d)}">+ Выдать ДЗ группе на этот день</button>`;
+  return h;
+}
+function lunchHtml(s, isToday, nowMin) {
+  const now = isToday && nowMin >= s.lunchStart && nowMin < s.lunchEnd;
+  return `<div class="lunch" style="${isToday && nowMin >= s.lunchEnd ? "opacity:.55" : ""}"><span>🍽</span><b>Обед</b><span class="grow"></span><span class="sub">${now ? "<b>сейчас</b> · " : ""}${hhmm(s.lunchStart)} – ${hhmm(s.lunchEnd)}</span></div>`;
+}
+function lessonHtml(l, sl, d, isToday, nowMin, hw, gid) {
+  const cur = isToday && nowMin >= sl.start && nowMin < sl.end, past = isToday && nowMin >= sl.end;
+  const meta = [l.kind, l.room ? "ауд. " + l.room : "", l.teacher].filter(Boolean).join(" · ");
+  let pills = "";
+  if (l.week) pills += `<span class="pill ${l.week === 1 ? "p-over" : "p-under"}">${weekName(l.week)}</span>`;
+  if (cur) pills += `<span class="pill p-primary">Идёт · до ${hhmm(sl.end)}</span>`;
+  else if (isToday && !past && sl.start - nowMin <= 120) { const m = sl.start - nowMin; pills += `<span class="pill p-ok">Через ${m >= 60 ? Math.floor(m / 60) + " ч " + (m % 60) + " мин" : m + " мин"}</span>`; }
+  const actions = canTeach(gid, l.subject) || canOpenJournal(gid);
+  return `<div class="card ${cur ? "current" : ""} ${past ? "past" : ""} ${actions ? "tappable" : ""}" ${actions ? `data-act="lesson" data-slot="${l.slot}" data-subj="${esc(l.subject)}" data-date="${iso(d)}" role="button" tabindex="0"` : ""}>
+    <div class="lesson"><div class="left"><span class="num">${sl.num}</span><div class="t1">${hhmm(sl.start)}</div><div class="t2">${hhmm(sl.end)}</div></div>
+    <div class="grow"><div class="subj">${esc(l.subject)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ""}${pills ? `<div class="pills">${pills}</div>` : ""}
+    ${hw.length ? `<div class="sep"></div>${hw.map(x => hwLine(x, false, false)).join("")}` : ""}</div></div></div>`;
+}
+function emptyHtml(t, sub, refresh) {
+  return `<div class="card empty"><h3>${esc(t)}</h3><p class="sub">${esc(sub)}</p>${refresh ? '<button class="btn" data-act="sync">Обновить</button>' : ""}</div>`;
+}
+
+/* ---------- ДЗ ---------- */
+function fileIcon(m) { return (m || "").startsWith("image/") ? "🖼" : (m || "").includes("pdf") ? "📄" : "📎"; }
+function hwLine(x, showSubject, teacherView) {
+  const isDone = !!done[x.id];
+  const head = [showSubject ? x.subject : "", x.slot > 0 && showSubject ? x.slot + " пара" : "", teacherView ? gname(x.group_id) : ""].filter(Boolean).join(" · ");
+  const edit = teacherView && canTeach(x.group_id, x.subject);
+  return `<div class="hw ${isDone && !teacherView ? "done" : ""}">
+    ${teacherView ? "" : `<button class="box" role="checkbox" aria-checked="${isDone}" aria-label="Сделано" data-act="hw-done" data-id="${x.id}">${isDone ? "✓" : ""}</button>`}
+    <div class="grow ${edit ? "tappable" : ""}" ${edit ? `data-act="hw-edit" data-id="${x.id}"` : ""}>
+      ${head ? `<div class="h">${esc(head)}</div>` : ""}
+      ${x.author && !teacherView ? `<div class="sub small">выдал(а): ${esc(x.author)}</div>` : ""}
+      ${x.text ? `<div class="tx">${esc(x.text)}</div>` : ""}
+      ${(x.files || []).map(f => `<button class="chip" data-act="file" data-id="${f.id}" data-name="${esc(f.name)}" data-mime="${esc(f.mime)}"><span>${fileIcon(f.mime)}  ${esc(f.name)}</span></button>`).join("")}
+    </div></div>`;
+}
+function byDateHtml(list, teacherView) {
+  const today = epochDay(new Date());
+  const map = new Map();
+  [...list].sort((a, b) => a.date.localeCompare(b.date) || a.slot - b.slot).forEach(x => { if (!map.has(x.date)) map.set(x.date, []); map.get(x.date).push(x); });
+  let h = "";
+  for (const [ds, items] of map) {
+    const d = parseIso(ds);
+    const overdue = !teacherView && epochDay(d) < today && items.some(x => !done[x.id]);
+    h += `<div class="sect ${overdue ? "danger" : ""}">${relDay(d)} · ${DAY_SHORT[d.getDay()].toLowerCase()}, ${dateLong(d)}${overdue ? " · просрочено" : ""}</div>
+      <div class="card">${items.map(x => hwLine(x, true, teacherView)).join("")}</div>`;
+  }
+  return h;
+}
+function hwHtml() {
+  let h = "";
+  const teacher = anyTeaching(), today = epochDay(new Date());
+  if (teacher) h += `<button class="btn primary full" data-act="hw-new">+ Выдать ДЗ</button>`;
+  let shown = false;
+  if (isStudent()) {
+    const mine = hwOf(U().group_id).filter(x => !(epochDay(parseIso(x.date)) < today - 14 && done[x.id]));
+    const open = mine.filter(x => !done[x.id]), fin = mine.filter(x => done[x.id]);
+    if (teacher) h += `<div class="sect">Задания моей группы</div>`;
+    h += open.length ? byDateHtml(open, false) : emptyHtml("Невыполненных заданий нет", "ДЗ выдают преподаватели — оно появится здесь само.", false);
+    if (fin.length) {
+      h += `<button class="btn full" data-act="toggle-done">${S.showDone ? "Скрыть выполненные" : "Выполненные (" + fin.length + ")"}</button>`;
+      if (S.showDone) h += byDateHtml(fin, false);
+    }
+    shown = true;
+  }
+  if (teacher) {
+    const my = (S.data.homework || []).filter(x => canTeach(x.group_id, x.subject) && epochDay(parseIso(x.date)) >= today - 7);
+    h += `<div class="sect">Выданные задания</div>` + (my.length ? byDateHtml(my, true) : emptyHtml("Пока ничего не выдано", "Нажми «Выдать ДЗ» или на свою пару на экране «Сегодня».", false));
+    shown = true;
+  }
+  if (!shown) {
+    const gid = ctx();
+    h += groupChipHtml(gid, groups(), "pick-ctx");
+    const list = gid ? hwOf(gid) : [];
+    h += list.length ? byDateHtml(list, false) : emptyHtml("Заданий нет", "Здесь появятся задания, которые преподаватели выдали группе.", false);
+  }
+  return h;
+}
+
+/* ---------- Расписание ---------- */
+function schedHtml() {
+  const gid = ctx();
+  if (!gid) return emptyHtml("Тебя ещё не добавили в группу", "Как только администратор добавит — здесь появится расписание.", true);
+  const s = sched(gid);
+  const ref = dow(new Date()) > 5 ? stepWeekday(new Date(), 1) : new Date();
+  const wt = weekTypeOf(s, ref);
+  let h = `<div class="card" style="background:var(--primary-soft)"><div class="row"><div class="grow"><b style="color:var(--primary);font-size:17px">Группа ${esc(gname(gid))}</b>
+      <div class="sub small">Расписание ведёт администратор · обновлено ${syncedAgo()}</div></div><button class="btn" style="background:var(--card)" data-act="sync">Обновить</button></div>
+      ${groups().length > 1 ? '<button class="link" data-act="pick-ctx" style="margin-top:6px">Другая группа ▾</button>' : ""}</div>`;
+  h += `<div class="card"><div class="row"><span class="grow">${dow(new Date()) > 5 ? "Наступающая неделя" : "Эта неделя"}</span><span class="pill ${wt === 1 ? "p-over" : "p-under"}">${weekName(wt)}</span></div>
+    <div class="sub small" style="margin-top:8px">${s.slots.map(x => `${x.num} пара ${hhmm(x.start)}–${hhmm(x.end)}`).join(" · ")}${s.lunchEnabled ? ` · обед ${hhmm(s.lunchStart)}–${hhmm(s.lunchEnd)}` : ""}</div></div>`;
+  h += `<div class="days">${[1, 2, 3, 4, 5].map(i => `<button aria-pressed="${S.schedDay === i}" data-act="sday" data-d="${i}">${["", "Пн", "Вт", "Ср", "Чт", "Пт"][i]}<small>${s.lessons.filter(l => l.day === i).length || "–"}</small></button>`).join("")}</div>`;
+  h += `<div class="sect">${DAY_TITLE[S.schedDay % 7]}</div>`;
+  let lunchDone = !s.lunchEnabled;
+  for (const sl of s.slots) {
+    if (!lunchDone && sl.start >= s.lunchStart) { h += lunchHtml(s, false, 0); lunchDone = true; }
+    const ls = s.lessons.filter(l => l.day === S.schedDay && l.slot === sl.num).sort((a, b) => a.week - b.week);
+    h += `<div class="card"><div class="row"><b style="color:var(--primary)">${sl.num} пара</b><span class="sub">${hhmm(sl.start)} – ${hhmm(sl.end)}</span></div>
+      ${ls.length ? ls.map(l => `<div class="row" style="margin-top:8px;background:var(--bg);border-radius:12px;padding:9px 10px"><div class="grow"><div style="font-weight:600">${esc(l.subject)}</div>
+        ${[l.kind, l.room ? "ауд. " + l.room : "", l.teacher].filter(Boolean).length ? `<div class="sub small">${esc([l.kind, l.room ? "ауд. " + l.room : "", l.teacher].filter(Boolean).join(" · "))}</div>` : ""}</div>
+        <span class="pill ${l.week === 1 ? "p-over" : l.week === 2 ? "p-under" : "p-primary"}">${l.week ? weekName(l.week) : "Каждую"}</span></div>`).join("")
+      : '<div class="sub small" style="margin-top:4px;opacity:.7">Нет пары</div>'}</div>`;
+  }
+  if (!lunchDone) h += lunchHtml(s, false, 0);
+  return h;
+}
+
+/* ---------- Н-ки ---------- */
+function debtCard(d, showStudent, teacher) {
+  const when = parseIso(d.date);
+  const occ = DAY_SHORT[when.getDay()].toLowerCase() + " " + ddmm(when) + (d.slot > 0 ? ", " + d.slot + " пара" : "");
+  return `<div class="card" style="${d.closed ? "opacity:.6" : ""}">
+    ${showStudent ? `<div style="font-weight:600">${esc(d.student_name || "Ученик")}</div><div class="small" style="color:var(--primary);font-weight:600">${esc([d.subject, gname(d.group_id)].filter(Boolean).join(" · "))}</div>`
+      : `<div class="subj">${esc(d.subject || "Предмет не указан")}</div>`}
+    <div class="small" style="color:${d.closed ? "var(--ok)" : "var(--sub)"};margin-top:2px">Пропуск: ${occ}${d.closed ? " · закрыт ✓" : ""}</div>
+    <div class="task ${d.task ? "has" : ""}">${d.task ? `<div class="lbl">Задание${d.task_by ? " · " + esc(d.task_by) : ""}</div><div style="white-space:pre-wrap;margin-top:2px">${esc(d.task)}</div>`
+      : `<div class="sub small">${teacher ? "Задание ещё не выдано" : "Задание для отработки пока не выдано — уточни у преподавателя"}</div>`}</div>
+    ${teacher && !d.closed ? `<div class="row" style="margin-top:10px"><button class="btn grow" data-act="debt-task" data-id="${d.id}">${d.task ? "Изменить задание" : "Выдать задание"}</button>
+      <button class="btn ok" data-act="debt-close" data-id="${d.id}">Сдал ✓</button></div>` : ""}
+    ${isAdmin() ? `<button class="link danger" data-act="debt-remove" data-id="${d.id}" style="margin-top:6px">Убрать Н</button>` : ""}
+  </div>`;
+}
+function debtsHtml() {
+  const me = U().id;
+  const own = [], teach = [], view = [];
+  for (const d of debts()) {
+    if (d.student_id === me) own.push(d);
+    else if (canTeach(d.group_id, d.subject)) teach.push(d);
+    else if (canViewJournal(d.group_id)) view.push(d);
+  }
+  let h = "", any = false;
+  const closedToggle = list => {
+    const c = list.filter(d => d.closed);
+    if (!c.length) return "";
+    return `<button class="btn full" data-act="toggle-closed">${S.showClosed ? "Скрыть закрытые" : "Закрытые за 30 дней (" + c.length + ")"}</button>` + (S.showClosed ? c.map(d => debtCard(d, d.student_id !== me, false)).join("") : "");
+  };
+  if (isStudent()) {
+    any = true;
+    const open = own.filter(d => !d.closed);
+    h += `<div class="card"><div class="debt-head"><div class="grow"><div class="big" style="color:${open.length ? "var(--danger)" : "var(--ok)"}">${open.length ? "Долгов: " + open.length : "Долгов нет"}</div>
+      <div class="sub small">${open.length ? "Н ставит староста. Задание для отработки выдаёт преподаватель, он же закрывает долг." : "Так держать!"}</div></div><div style="font-size:30px">${open.length ? "⚠" : "🏆"}</div></div></div>`;
+    h += open.map(d => debtCard(d, false, false)).join("") + closedToggle(own);
+  }
+  if (teach.length || anyTeaching()) {
+    any = true;
+    const open = teach.filter(d => !d.closed);
+    h += `<div class="sect">Долги по моим предметам</div>` + (open.length ? open.map(d => debtCard(d, true, true)).join("")
+      : emptyHtml("Открытых долгов нет", "Когда староста отметит пропуск на твоей паре, долг появится здесь.", false));
+    if (!isStudent()) h += closedToggle(teach);
+  }
+  if (view.length || (!any && journalGroups().length)) {
+    any = true;
+    const open = view.filter(d => !d.closed);
+    h += `<div class="sect">Долги группы</div>` + (open.length ? open.map(d => debtCard(d, true, false)).join("") : emptyHtml("Открытых долгов нет", "Здесь видны долги учеников группы.", false));
+  }
+  if (!any) h += emptyHtml("Здесь пусто", "Н-ки видны ученикам, преподавателям, старосте и куратору.", false);
+  return h;
+}
+
+/* ---------- Журнал ---------- */
+const GRADES = ["", "5", "4", "3", "2", "зачёт", "незачёт"];
+function journalHtml() {
+  const jg = journalGroups();
+  if (!S.jGroup || !canOpenJournal(S.jGroup)) S.jGroup = (U().headman_group && canOpenJournal(U().headman_group)) ? U().headman_group : (canOpenJournal(ctx()) ? ctx() : (jg[0] || {}).id);
+  const gid = S.jGroup;
+  if (!gid) return emptyHtml("Журнал недоступен", "Посещаемость отмечает староста, оценки ставят преподаватели, смотрит куратор.", false);
+  const canSummary = canViewJournal(gid);
+  if (!canSummary) S.jMode = "day";
+  let h = groupChipHtml(gid, jg, "pick-jgroup");
+  if (canSummary) h += `<div class="seg"><button aria-pressed="${S.jMode === "day"}" data-act="jmode" data-m="day">По дням</button><button aria-pressed="${S.jMode === "summary"}" data-act="jmode" data-m="summary">Сводка</button></div>`;
+  if (S.jMode === "summary") return h + summaryHtml(gid);
+  if (!S.jDate) { const t = dayStart(new Date()); S.jDate = dow(t) > 5 ? stepWeekday(t, -1) : t; }
+  const d = S.jDate, s = sched(gid);
+  h += `<div class="card"><div class="row"><div class="grow"><div class="day-title" style="font-size:20px">${relDay(d)}</div><div class="sub">${DAY_FULL[d.getDay()]}, ${dateLong(d)}</div></div>
+      <button class="arrow" data-act="jday" data-d="-1" aria-label="Предыдущий день">‹</button><button class="arrow" data-act="jday" data-d="1" aria-label="Следующий день">›</button></div>
+      <label class="small" style="display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--primary);font-weight:600">Выбрать дату <input type="date" id="jdate" value="${iso(d)}" style="border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--bg);color:var(--text)"></label></div>`;
+  const ls = lessonsOn(s, d);
+  if (!ls.length) return h + emptyHtml("Пар нет", "По расписанию группы в этот день занятий нет.", false);
+  const data = S.jCache[gid + "|" + iso(d)];
+  if (!data) loadJournal(gid, d);
+  for (const l of ls) {
+    const sl = slotOf(s, l.slot);
+    const mark = isHeadman(gid), grade = canTeach(gid, l.subject);
+    let sum = "загрузка…";
+    if (data) {
+      const e = data.entries.filter(x => x.slot === sl.num);
+      const abs = e.filter(x => x.absent).length, gr = e.filter(x => x.grade).length;
+      sum = abs || gr ? `Н: ${abs} · оценок: ${gr}` : "отметок нет";
+    }
+    h += `<button class="card" ${data ? `data-act="att" data-slot="${sl.num}" data-subj="${esc(l.subject)}"` : "disabled"}><div class="row"><span class="num">${sl.num}</span><div class="grow"><div style="font-weight:600">${esc(l.subject)}</div>
+      <div class="sub small">${hhmm(sl.start)}–${hhmm(sl.end)} · ${sum}</div></div><span style="color:var(--primary);font-weight:600;font-size:14px">${mark && grade ? "Отметить ›" : mark ? "Посещаемость ›" : grade ? "Оценки ›" : "Открыть ›"}</span></div></button>`;
+  }
+  const hint = isHeadman(gid) ? "Нажми на пару, чтобы отметить отсутствующих. За каждую Н у ученика появится долг. Оценки ставят преподаватели."
+    : teaches(gid) ? "Нажми на свою пару, чтобы поставить оценки. Н отмечает староста." : "";
+  return h + (hint ? `<p class="sub small" style="padding:0 4px">${hint}</p>` : "");
+}
+async function loadJournal(gid, d) {
+  const key = gid + "|" + iso(d);
+  if (loadJournal.busy === key) return;
+  loadJournal.busy = key;
+  try { S.jCache[key] = await call("journal_day", { p_group: gid, p_date: iso(d) }); }
+  catch (e) { toast(e.message); S.jCache[key] = null; }
+  loadJournal.busy = null;
+  if (S.tab === "journal" && S.jCache[key]) rerender();
+}
+function summaryHtml(gid) {
+  if (!S.summary || S.summary.gid !== gid) {
+    const to = dayStart(new Date()), from = addDays(to, -150);
+    if (!summaryHtml.busy) {
+      summaryHtml.busy = true;
+      call("journal_records", { p_group: gid, p_from: iso(from), p_to: iso(to) })
+        .then(r => { S.summary = { gid, ...r }; }).catch(e => toast(e.message))
+        .finally(() => { summaryHtml.busy = false; if (S.tab === "journal") rerender(); });
+    }
+    return `<p class="sub">Считаю сводку…</p>`;
+  }
+  const { students, entries } = S.summary;
+  if (!students.length) return emptyHtml("В группе нет учеников", "Их добавляет администратор.", false);
+  let h = `<p class="sub small" style="padding:0 4px">За последние 5 месяцев. Н — пропуски, рядом — оценки по предметам.</p>`;
+  for (const st of students) {
+    const mine = entries.filter(e => e.student_id === st.id);
+    const total = mine.filter(e => e.absent).length;
+    const subs = [...new Set(mine.map(e => e.subject))].sort((a, b) => a.localeCompare(b, "ru"));
+    const od = debts().filter(x => x.student_id === st.id && !x.closed).length;
+    h += `<div class="card"><div class="row"><b class="grow">${esc(st.full_name)}</b><span class="pill ${total ? "p-danger" : "p-ok"}">Н: ${total}</span>${od ? `<span class="pill p-under">долгов: ${od}</span>` : ""}</div>
+      ${subs.length ? subs.map(sb => { const x = mine.filter(e => e.subject === sb), g = x.filter(e => e.grade).map(e => e.grade), a = x.filter(e => e.absent).length;
+        return `<div class="sub small" style="margin-top:4px">${esc(sb)}: ${g.length ? esc(g.join(" ")) : "оценок нет"}${a ? " · Н " + a : ""}</div>`; }).join("") : '<div class="sub small" style="margin-top:4px">Отметок пока нет</div>'}</div>`;
+  }
+  return h + `<button class="btn full" data-act="summary-refresh">Обновить сводку</button>`;
+}
+
+/* ---------- Настройки ---------- */
+function settingsHtml() {
+  const u = U();
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  return `<div class="sect">Аккаунт</div><div class="card">
+      <div style="font-weight:600;font-size:17px">${esc(u.full_name || u.login)}</div>
+      <div class="sub small">Логин ${esc(u.login)}${roleTitle() ? " · " + roleTitle() : ""}</div>
+      ${isStudent() ? `<div class="sub small">Группа ${esc(gname(u.group_id))}</div>` : ""}
+      ${has("headman") && u.headman_group ? `<div class="sub small">Староста группы ${esc(gname(u.headman_group))}</div>` : ""}
+      ${has("teacher") ? `<div class="sub small">Предметы: ${esc((u.teacher_subjects || []).join(", ") || "не назначены")}</div>` : ""}
+      <button class="link" data-act="sync" style="margin-top:8px">Обновить данные · ${syncedAgo()}</button>
+      <div class="row" style="margin-top:10px"><button class="btn grow" data-act="password">Сменить пароль</button><button class="btn grow" data-act="logout">Выйти</button></div></div>
+    ${standalone ? "" : `<div class="sect">Как приложение</div><div class="card">
+      <div style="font-weight:600">Добавь на экран «Домой»</div>
+      <div class="sub small" style="margin-top:4px">iPhone: в Safari нажми «Поделиться» <b>⎋</b> → «На экран „Домой“». Android: меню браузера ⋮ → «Добавить на главный экран». Откроется на весь экран, как обычное приложение.</div></div>`}
+    <div class="sect">Напоминания</div><div class="card"><div class="sub small">Если на завтра есть невыполненное ДЗ, на экране «Сегодня» появится плашка 🔔. Фоновые уведомления со звуком есть в Android-приложении.</div></div>
+    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 1.0</p>`;
+}
+
+/* ================== Вход ================== */
+function loginHtml() {
+  return `<div class="login">
+    <div class="logo"><img src="icons/icon-192.png" alt=""><h1>Расписание</h1></div>
+    <form id="loginForm" class="card" style="padding:18px">
+      <div style="font-weight:700;font-size:20px">Вход</div>
+      <div class="sub small" style="margin-top:4px">Войди под логином и паролем, которые выдал администратор.</div>
+      <label for="lg">Логин</label><input id="lg" name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required placeholder="например, ivanov.i">
+      <label for="pw">Пароль</label><input id="pw" name="password" type="password" autocomplete="current-password" required>
+      <div id="lerr" class="err hidden"></div>
+      <button class="btn primary full" style="margin-top:16px" type="submit">Войти</button>
+    </form>
+    <p class="sub small" style="text-align:center">Нет логина? Его выдаёт администратор твоего учебного заведения.</p></div>`;
+}
+function bindLogin() {
+  const f = $("#loginForm");
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const btn = f.querySelector("button[type=submit]"), er = $("#lerr");
+    btn.disabled = true; btn.textContent = "Вхожу…"; er.classList.add("hidden");
+    try {
+      const r = await rpc("login", { p_login: f.login.value.trim(), p_password: f.password.value, p_device: "web " + (navigator.platform || "") });
+      S.token = r.token; LS.set("rasp_token", r.token);
+      S.data = null; S.tab = "home"; Object.keys(done).forEach(k => delete done[k]); saveDone();
+      render();
+      await sync(false);
+      toast("Привет, " + (r.user.full_name || r.user.login) + "!");
+    } catch (x) {
+      er.textContent = x.message; er.classList.remove("hidden");
+      btn.disabled = false; btn.textContent = "Войти";
+    }
+  };
+}
+
+/* ================== Листы (диалоги) ================== */
+const sheet = $("#sheet");
+function openSheet(html, bind) {
+  sheet.innerHTML = `<form method="dialog" novalidate>${html}</form>`;
+  if (!sheet.open) sheet.showModal();
+  const form = sheet.querySelector("form");
+  form.querySelectorAll("[data-close]").forEach(b => b.onclick = e => { e.preventDefault(); sheet.close(); });
+  bind && bind(form);
+}
+sheet.addEventListener("click", e => { if (e.target === sheet) sheet.close(); }); // тап по затемнению — закрыть
+function sheetError(form, msg) {
+  let e = form.querySelector(".err");
+  if (!e) { e = document.createElement("div"); e.className = "err"; form.querySelector(".actions").before(e); }
+  e.textContent = msg;
+}
+function choose(title, items, onPick) {
+  openSheet(`<h2>${esc(title)}</h2>${items.map((it, i) => `<button type="button" class="btn full" data-i="${i}" style="text-align:left;margin:4px 0">${esc(it)}</button>`).join("")}
+    <div class="actions"><button class="btn" data-close>Отмена</button></div>`,
+    form => form.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { sheet.close(); onPick(+b.dataset.i); }));
+}
+async function busy(label, fn) {
+  toast(label);
+  try { const r = await fn(); return r; }
+  catch (e) { if (e.auth) { logoutLocal(); render(); } toast(e.message); throw e; }
+}
+
+/* ---------- Выдать / изменить ДЗ (учитель) ---------- */
+const MAX_FILE = 5 * 1024 * 1024;
+function hwDialog(existing, presetDate, presetSlot, presetSubject) {
+  const gs = teachingGroups();
+  if (!gs.length) return toast("Администратор пока не назначил тебе группы");
+  const isNew = !existing;
+  const startG = isNew ? (teaches(ctx()) ? ctx() : gs[0].id) : existing.group_id;
+  const st = {
+    gid: startG, subj: isNew ? presetSubject : existing.subject,
+    date: isNew ? presetDate : parseIso(existing.date), slot: isNew ? presetSlot : existing.slot,
+    other: false, free: null, keep: isNew ? [] : (existing.files || []).slice(), removed: [], added: []
+  };
+  openSheet(`
+    <h2>${isNew ? "Выдать ДЗ" : "Изменить ДЗ"}</h2>
+    <div class="lbl2">Группа</div><select name="g">${gs.map(g => `<option value="${g.id}" ${g.id === startG ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select>
+    <div class="lbl2">Предмет</div><select name="s"></select>
+    <div class="lbl2">Когда (по расписанию группы)</div><select name="w"></select>
+    <input type="date" name="d" class="hidden" style="margin-top:8px">
+    <div class="lbl2">Задание</div><textarea name="t" placeholder="Что нужно сделать">${esc(isNew ? "" : existing.text)}</textarea>
+    <div class="lbl2">Файлы (до 5 МБ каждый)</div><div id="files"></div>
+    <label class="btn" style="margin-top:6px;display:block">📎 Прикрепить файл или фото<input type="file" name="f" multiple class="hidden"></label>
+    <div class="actions">${isNew ? "" : '<button type="button" class="btn" data-del style="color:var(--danger);flex:0 0 auto">Удалить</button>'}<button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">${isNew ? "Выдать" : "Сохранить"}</button></div>`,
+    form => {
+      let occ = [];
+      const now = new Date();
+      const drawFiles = () => {
+        const box = form.querySelector("#files");
+        const all = [...st.keep.map((f, i) => ({ name: f.name, k: "keep", i })), ...st.added.map((f, i) => ({ name: f.name, k: "added", i }))];
+        box.innerHTML = all.length ? all.map(x => `<div class="chip"><span>📎 ${esc(x.name)}</span><button type="button" class="x" data-rm="${x.k}:${x.i}" aria-label="Убрать файл">✕</button></div>`).join("")
+          : '<div class="sub small">Можно прикрепить PDF, фото, документ…</div>';
+        box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
+          const [k, i] = b.dataset.rm.split(":");
+          if (k === "keep") st.removed.push(st.keep.splice(+i, 1)[0]); else st.added.splice(+i, 1);
+          drawFiles();
+        });
+      };
+      const fillWhen = () => {
+        const subj = form.s.value;
+        occ = subj ? upcoming(sched(st.gid), subj, now, 12) : [];
+        let sel = -1;
+        if (st.date) {
+          sel = occ.findIndex(o => sameDay(o.date, st.date) && (!(st.slot > 0) || o.slot.num === st.slot));
+          if (sel < 0 && st.slot > 0 && slotOf(sched(st.gid), st.slot)) { occ.unshift({ date: st.date, slot: slotOf(sched(st.gid), st.slot) }); sel = 0; }
+          if (sel < 0) { st.other = true; st.free = st.date; }
+        }
+        form.w.innerHTML = occ.map((o, i) => `<option value="${i}">${relDay(o.date) === DAY_TITLE[o.date.getDay()] ? "" : relDay(o.date) + ", "}${DAY_SHORT[o.date.getDay()].toLowerCase()} ${ddmm(o.date)} · ${o.slot.num} пара, ${hhmm(o.slot.start)}</option>`).join("") + `<option value="other">Другая дата…</option>`;
+        if (!occ.length) st.other = true;
+        form.w.value = st.other ? "other" : String(Math.max(sel, 0));
+        showDate();
+      };
+      const showDate = () => {
+        const other = form.w.value === "other";
+        st.other = other;
+        form.d.classList.toggle("hidden", !other);
+        if (other && !form.d.value) form.d.value = iso(st.free || stepWeekday(dayStart(new Date()), 1));
+      };
+      const fillSubjects = () => {
+        const subs = subjectsFor(st.gid);
+        form.s.innerHTML = subs.length ? subs.map(x => `<option ${st.subj && x.toLowerCase() === String(st.subj).trim().toLowerCase() ? "selected" : ""}>${esc(x)}</option>`).join("") : '<option value="">Нет назначенных предметов</option>';
+        fillWhen();
+      };
+      form.g.onchange = () => { st.gid = form.g.value; st.date = null; st.slot = -1; st.other = false; fillSubjects(); };
+      form.s.onchange = () => { st.subj = form.s.value; st.date = null; st.slot = -1; st.other = false; fillWhen(); };
+      form.w.onchange = showDate;
+      form.f.onchange = () => {
+        for (const f of form.f.files) {
+          if (f.size > MAX_FILE) { toast("«" + f.name + "» больше 5 МБ"); continue; }
+          st.added.push(f);
+        }
+        form.f.value = ""; drawFiles();
+      };
+      fillSubjects(); drawFiles();
+      const del = form.querySelector("[data-del]");
+      if (del) del.onclick = async () => {
+        if (!confirm("Удалить задание? Оно пропадёт у всей группы.")) return;
+        sheet.close();
+        try { await busy("Удаляю…", () => call("hw_delete", { p_id: existing.id })); toast("Удалено"); sync(false); } catch (e) {}
+      };
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const text = form.t.value.trim();
+        if (!text && !st.keep.length && !st.added.length) return sheetError(form, "Напиши задание или прикрепи файл");
+        if (!form.s.value) return sheetError(form, "Администратор не назначил тебе предметы в этой группе");
+        let date, slot;
+        if (form.w.value === "other") { if (!form.d.value) return sheetError(form, "Выбери дату"); date = form.d.value; slot = -1; }
+        else { const o = occ[+form.w.value]; date = iso(o.date); slot = o.slot.num; }
+        const btn = form.querySelector("[type=submit]"); btn.disabled = true; btn.textContent = st.added.length ? "Загружаю файлы…" : "Сохраняю…";
+        try {
+          const r = await call("hw_save", { p_id: isNew ? null : existing.id, p_group: st.gid, p_subject: form.s.value, p_date: date, p_slot: slot, p_text: text });
+          for (const f of st.removed) await call("hw_file_delete", { p_file: f.id });
+          for (const f of st.added) await call("hw_file_add", { p_hw: r.id, p_name: f.name, p_mime: f.type || "application/octet-stream", p_data: await toBase64(f) });
+          sheet.close(); toast(isNew ? "ДЗ выдано ✓" : "Сохранено ✓"); sync(false);
+        } catch (x) {
+          btn.disabled = false; btn.textContent = isNew ? "Выдать" : "Сохранить";
+          sheetError(form, x.message);
+        }
+      };
+    });
+}
+function toBase64(file) {
+  return new Promise((ok, fail) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(",")[1] || "");
+    r.onerror = () => fail(new Error("Не удалось прочитать «" + file.name + "»"));
+    r.readAsDataURL(file);
+  });
+}
+const fileUrls = {};
+async function openFile(id, name, mime) {
+  try {
+    if (!fileUrls[id]) {
+      toast("Скачиваю «" + name + "»…");
+      const r = await call("hw_file_get", { p_file: id });
+      const bin = atob(r.data), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      fileUrls[id] = URL.createObjectURL(new Blob([arr], { type: r.mime || mime || "application/octet-stream" }));
+    }
+    // На iPhone файл надёжнее открывать прямым нажатием по ссылке
+    openSheet(`<h2>${esc(name)}</h2><a class="btn primary full" href="${fileUrls[id]}" target="_blank" rel="noopener" download="${esc(name)}" style="text-decoration:none">Открыть файл</a>
+      <div class="actions"><button class="btn" data-close>Закрыть</button></div>`);
+  } catch (e) { if (e.auth) { logoutLocal(); render(); } toast(e.message); }
+}
+
+/* ---------- Долги: задание и закрытие (учитель), убрать Н (админ) ---------- */
+function debtTaskDialog(d) {
+  openSheet(`<h2>Задание по долгу</h2><div class="sub small">${esc(d.student_name)} · ${esc(d.subject)} · пропуск ${ddmm(parseIso(d.date))}</div>
+    <div class="lbl2">Что сделать, чтобы закрыть долг</div><textarea name="t" placeholder="например: реферат по теме лекции, решить вариант 3">${esc(d.task)}</textarea>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Сохранить</button></div>`,
+    form => form.onsubmit = async e => {
+      e.preventDefault();
+      try { await call("debt_set_task", { p_id: d.id, p_task: form.t.value.trim() }); sheet.close(); toast("Задание выдано ✓"); sync(false); }
+      catch (x) { sheetError(form, x.message); }
+    });
+}
+
+/* ---------- Журнал: отметки на паре ---------- */
+function attendanceDialog(gid, d, slotNum, subject) {
+  const data = S.jCache[gid + "|" + iso(d)];
+  const mark = isHeadman(gid), gradeEdit = canTeach(gid, subject), edit = mark || gradeEdit;
+  if (!data.students.length) return toast("В группе пока нет учеников — их добавляет администратор");
+  const ent = {};
+  data.entries.filter(x => x.slot === slotNum).forEach(x => ent[x.student_id] = x);
+  const abs = {};
+  data.students.forEach(s => abs[s.id] = !!(ent[s.id] && ent[s.id].absent));
+  openSheet(`<h2>${esc(subject)}</h2><div class="sub small">${DAY_FULL[d.getDay()]}, ${dateLong(d)} · ${slotNum} пара</div>
+    ${edit ? `<div class="sub small" style="margin-top:2px">${mark && gradeEdit ? "Н и оценки" : mark ? "Отметь отсутствующих — оценки ставит преподаватель" : "Поставь оценки — Н отмечает староста"}</div>` : ""}
+    <div style="margin-top:8px">${data.students.map(s => {
+      const g = ent[s.id] ? ent[s.id].grade : "";
+      return `<div class="att ${abs[s.id] ? "abs" : ""}" data-sid="${s.id}"><span class="nm">${esc(s.full_name)}</span>
+        ${mark ? `<button type="button" class="nbtn" aria-pressed="${abs[s.id]}" data-n="${s.id}" aria-label="${esc(s.full_name)}: отсутствовал">Н</button>` : (abs[s.id] ? '<span class="pill p-danger">Н</span>' : "")}
+        ${gradeEdit ? `<select class="grade" data-g="${s.id}" aria-label="${esc(s.full_name)}: оценка">${GRADES.map(x => `<option value="${x}" ${x === g ? "selected" : ""}>${x || "—"}</option>`).join("")}</select>`
+          : (g ? `<span class="pill p-ok">${esc(g)}</span>` : (!abs[s.id] && !edit ? '<span class="sub small">был</span>' : ""))}</div>`; }).join("")}</div>
+    <div class="actions">${edit ? '<button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Сохранить</button>' : '<button class="btn primary" data-close>Закрыть</button>'}</div>`,
+    form => {
+      form.querySelectorAll("[data-n]").forEach(b => b.onclick = () => {
+        const id = b.dataset.n; abs[id] = !abs[id];
+        b.setAttribute("aria-pressed", abs[id]); b.closest(".att").classList.toggle("abs", abs[id]);
+      });
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const btn = form.querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Сохраняю…";
+        try {
+          let n = 0;
+          if (mark) n = (await call("journal_set", { p_group: gid, p_date: iso(d), p_slot: slotNum, p_subject: subject,
+            p_entries: data.students.map(s => ({ student_id: s.id, absent: abs[s.id] })) })).absent;
+          if (gradeEdit) await call("grades_set", { p_group: gid, p_date: iso(d), p_slot: slotNum, p_subject: subject,
+            p_entries: data.students.map(s => ({ student_id: s.id, grade: form.querySelector(`[data-g="${s.id}"]`).value })) });
+          sheet.close();
+          delete S.jCache[gid + "|" + iso(d)]; S.summary = null;
+          toast(n ? `Сохранено ✓ Н: ${n} — долги появятся у учеников` : "Журнал сохранён ✓");
+          rerender();
+          if (mark) sync(false);
+        } catch (x) { btn.disabled = false; btn.textContent = "Сохранить"; sheetError(form, x.message); }
+      };
+    });
+}
+
+function passwordDialog() {
+  openSheet(`<h2>Сменить пароль</h2><div class="lbl2">Текущий пароль</div><input type="password" name="o" autocomplete="current-password">
+    <div class="lbl2">Новый пароль (от 6 символов)</div><input type="password" name="n" autocomplete="new-password">
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Сменить</button></div>`,
+    form => form.onsubmit = async e => {
+      e.preventDefault();
+      if (form.n.value.length < 6) return sheetError(form, "Новый пароль — от 6 символов");
+      try { await call("change_password", { p_old: form.o.value, p_new: form.n.value }); sheet.close(); toast("Пароль изменён ✓"); }
+      catch (x) { sheetError(form, x.message); }
+    });
+}
+
+/* ================== События ================== */
+function afterRender() {
+  const jd = $("#jdate");
+  if (jd) jd.onchange = () => { if (jd.value) { S.jDate = parseIso(jd.value); rerender(); } };
+}
+document.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button][data-act]")) { e.preventDefault(); e.target.click(); }
+});
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-act],[data-tab]");
+  if (!t || sheet.contains(t) || !S.token) return;
+  if (t.dataset.tab) { S.tab = t.dataset.tab; if (S.tab === "home") S.browse = null; render(); return; }
+  const a = t.dataset.act, id = t.dataset.id;
+  const hw = id ? (S.data.homework || []).find(x => x.id === id) : null;
+  const debt = id ? debts().find(x => x.id === id) : null;
+  switch (a) {
+    case "settings": S.tab = "settings"; render(); break;
+    case "sync": sync(true); break;
+    case "day": { const s = sched(ctx()); S.browse = stepWeekday(S.browse || dayToShow(s, new Date()), +t.dataset.d); render(); break; }
+    case "day-auto": S.browse = null; render(); break;
+    case "pick-ctx": choose("Какую группу показать?", groups().map(g => g.name), i => { S.ctx = groups()[i].id; LS.set("rasp_ctx", S.ctx); S.browse = null; render(); }); break;
+    case "pick-jgroup": { const jg = journalGroups(); choose("Журнал какой группы?", jg.map(g => g.name), i => { S.jGroup = jg[i].id; render(); }); break; }
+    case "sday": S.schedDay = +t.dataset.d; rerender(); break;
+    case "hw-done": done[id] ? delete done[id] : (done[id] = 1); saveDone(); rerender(); break;
+    case "toggle-done": S.showDone = !S.showDone; rerender(); break;
+    case "toggle-closed": S.showClosed = !S.showClosed; rerender(); break;
+    case "hw-new": hwDialog(null, t.dataset.date ? parseIso(t.dataset.date) : null, -1, null); break;
+    case "hw-edit": if (hw) hwDialog(hw); break;
+    case "file": openFile(id, t.dataset.name, t.dataset.mime); break;
+    case "lesson": {
+      const gid = ctx(), d = parseIso(t.dataset.date), slot = +t.dataset.slot, subj = t.dataset.subj;
+      const items = [], acts = [];
+      if (canTeach(gid, subj)) {
+        items.push("📝 Выдать ДЗ на эту пару (" + ddmm(d) + ")"); acts.push(() => hwDialog(null, d, slot, subj));
+        const nx = upcoming(sched(gid), subj, addDays(dayStart(d > new Date() ? d : new Date()), 0), 3).find(o => o.date > d);
+        if (nx) { items.push("⏭ Выдать ДЗ на следующую пару (" + ddmm(nx.date) + ")"); acts.push(() => hwDialog(null, nx.date, nx.slot.num, subj)); }
+        items.push("📒 Поставить оценки"); acts.push(null);
+      }
+      if (isHeadman(gid)) { items.push("📒 Отметить посещаемость"); acts.push(null); }
+      if (!canTeach(gid, subj) && !isHeadman(gid) && canOpenJournal(gid)) { items.push("📒 Открыть в журнале"); acts.push(null); }
+      if (!items.length) break;
+      choose(subj, items, i => { if (acts[i]) acts[i](); else { S.jGroup = gid; S.jMode = "day"; S.jDate = d; S.tab = "journal"; render(); } });
+      break;
+    }
+    case "debt-task": if (debt) debtTaskDialog(debt); break;
+    case "debt-close":
+      if (debt && confirm(`Закрыть долг? ${debt.student_name} — ${debt.subject}, пропуск ${ddmm(parseIso(debt.date))}.`))
+        try { await busy("Закрываю…", () => call("debt_close", { p_id: debt.id, p_closed: true })); toast("Долг закрыт 🎉"); sync(false); } catch (x) {}
+      break;
+    case "debt-remove":
+      if (debt && confirm("Убрать Н? Отметка в журнале снимется, долг удалится насовсем."))
+        try { await busy("Убираю…", () => call("admin_remove_absence", { p_debt: debt.id })); S.jCache = {}; S.summary = null; toast("Н убрана"); sync(false); } catch (x) {}
+      break;
+    case "jmode": S.jMode = t.dataset.m; rerender(); break;
+    case "jday": S.jDate = stepWeekday(S.jDate, +t.dataset.d); rerender(); break;
+    case "att": attendanceDialog(S.jGroup, S.jDate, +t.dataset.slot, t.dataset.subj); break;
+    case "summary-refresh": S.summary = null; rerender(); break;
+    case "password": passwordDialog(); break;
+    case "logout":
+      if (!confirm("Выйти из аккаунта?")) break;
+      call("logout").catch(() => {});
+      logoutLocal(); render(); break;
+  }
+});
+
+/* ================== Старт ================== */
+render();
+if (S.token) sync(false);
+setInterval(() => { if (S.token && S.tab === "home" && !sheet.open && document.visibilityState === "visible") rerender(); }, 60000);
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

@@ -785,7 +785,7 @@ function settingsHtml() {
       <div style="font-weight:600">Добавь на экран «Домой»</div>
       <div class="sub small" style="margin-top:4px">iPhone: в Safari нажми «Поделиться» <b>⎋</b> → «На экран „Домой“». Android: меню браузера ⋮ → «Добавить на главный экран». Откроется на весь экран, как обычное приложение.</div></div>`}
     <div class="sect">Напоминания</div><div class="card"><div class="sub small">Если на завтра есть невыполненное ДЗ, на экране «Сегодня» появится плашка 🔔. Фоновые уведомления со звуком есть в Android-приложении.</div></div>
-    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 2.0</p>`;
+    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 2.1</p>`;
 }
 
 /* ================== Вход ================== */
@@ -1185,7 +1185,13 @@ document.addEventListener("click", async e => {
 render();
 if (S.token) sync(false);
 setInterval(() => { if (S.token && S.tab === "home" && !sheet.open && document.visibilityState === "visible") rerender(); }, 60000);
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  // updateViaCache: "none" — браузер проверяет новую версию sw.js при каждом открытии, а не раз в сутки
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(r => r.update()).catch(() => {});
+  // Когда новая версия активировалась — один раз тихо перезагрузить страницу
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded && navigator.serviceWorker.controller) { reloaded = true; location.reload(); } });
+}
 </script>
 </body>
 </html>

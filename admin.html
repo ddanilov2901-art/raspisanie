@@ -1241,34 +1241,56 @@ function bindJournalDate() {
 function mailHtml() {
   const m = S.mail;
   if (!m) { loadMail(); return `<p class="muted">Загружаю…</p>`; }
+  const fnUrl = m.function_url || (S.url ? S.url + "/functions/v1/send-mail" : "");
   return `
-    <div class="head"><div><h1>Почта для кодов</h1><p class="sub muted">Отсюда уходят коды входа, привязки почты и сброса пароля. Сервис — Brevo, бесплатно 300 писем в день.</p></div></div>
+    <div class="head"><div><h1>Почта для кодов</h1><p class="sub muted">Коды входа, привязки почты и сброса пароля уходят с твоего ящика на Яндексе через функцию Supabase «send-mail». Пароль от Яндекса здесь не вводится — он хранится только в секретах функции.</p></div></div>
     ${m.pg_net ? "" : `<div class="err">В базе не включено расширение pg_net — письма не уйдут. Supabase → Database → Extensions → pg_net → Enable, потом запусти supabase_setup.sql ещё раз.</div>`}
-    <div class="note" style="margin-bottom:14px">${m.ready ? "✅ Отправка настроена" : "⚠️ Отправка не настроена: пока пользователи не смогут привязать почту и восстановить пароль сами. Вход работает как обычно."}</div>
-    <form id="mailForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:560px">
-      <label class="field">API-ключ Brevo ${m.key_set ? `<span class="muted">(сохранён, заканчивается на ${esc(m.key_hint)} — оставь пустым, чтобы не менять)</span>` : ""}
-        <input type="password" name="key" autocomplete="off" placeholder="${m.key_set ? "••••••••" : "xkeysib-…"}"></label>
-      <label class="field">Адрес отправителя (подтверждённый в Brevo)<input type="text" name="from" value="${esc(m.from)}" placeholder="raspisanie.kody@gmail.com"></label>
+    <div class="note" style="margin-bottom:14px">${m.ready ? "✅ Отправка настроена — проверь тестовым письмом ниже" : "⚠️ Отправка не настроена: пользователи пока не могут привязать почту и восстановить пароль сами. Вход работает как обычно."}</div>
+    <form id="mailForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:620px">
+      <label class="field">Адрес функции<input type="text" name="fn" value="${esc(fnUrl)}" placeholder="https://xxxx.supabase.co/functions/v1/send-mail"></label>
+      <label class="field">Ящик на Яндексе, с которого уходят письма<input type="text" name="from" value="${esc(m.from)}" placeholder="raspisanie.kody@yandex.ru"></label>
       <label class="field">Имя отправителя<input type="text" name="name" value="${esc(m.from_name || "Расписание")}"></label>
+      <div class="field">Ключ функции (MAIL_RELAY_TOKEN)
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+          <input type="text" name="token" readonly placeholder="${m.token_set ? "сохранён: " + esc(m.token_hint) : "ещё не создан"}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,monospace">
+          <button class="btn" type="button" data-gen>${m.token_set ? "Создать новый" : "Создать ключ"}</button>
+          <button class="btn hidden" type="button" data-copy>Скопировать</button>
+        </div>
+        <span class="small muted" id="tokenHint">${m.token_set ? "Ключ уже сохранён. Новый понадобится, только если старый потерян — тогда его нужно будет заменить и в секретах функции." : "Нажми «Создать ключ», скопируй его и вставь в Supabase → Edge Functions → Secrets как MAIL_RELAY_TOKEN. Потом нажми «Сохранить»."}</span>
+      </div>
       <div><button class="btn primary" type="submit">Сохранить</button></div>
     </form>
-    <form id="testForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:560px;margin-top:14px">
+    <form id="testForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:620px;margin-top:14px">
       <b>Проверка</b>
       <label class="field">Куда отправить тестовое письмо<input type="text" name="to" placeholder="твоя почта"></label>
-      <div style="display:flex;gap:10px;align-items:center"><button class="btn" type="submit" ${m.ready ? "" : "disabled"}>Отправить тестовое письмо</button><span id="testStatus" class="status"></span></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" type="submit" ${m.ready ? "" : "disabled"}>Отправить тестовое письмо</button><span id="testStatus" class="status"></span></div>
     </form>`;
 }
 async function loadMail() {
   try { S.mail = await rpc("admin_get_mail", T()); } catch (e) { toast(e.message); return; }
   if (S.view === "mail") renderMain();
 }
+function newToken() {
+  const a = new Uint8Array(24); crypto.getRandomValues(a);
+  return "rk_" + Array.from(a, b => b.toString(16).padStart(2, "0")).join("");
+}
 function bindMail() {
   const f = $("#mailForm"), t = $("#testForm");
   if (!f) return;
+  f.querySelector("[data-gen]").onclick = () => {
+    if (S.mail.token_set && !confirm("Создать новый ключ? После сохранения старый перестанет работать — новый нужно будет вставить в секрет MAIL_RELAY_TOKEN функции.")) return;
+    f.token.value = newToken();
+    f.querySelector("[data-copy]").classList.remove("hidden");
+    $("#tokenHint").textContent = "Скопируй ключ → Supabase → Edge Functions → Secrets → MAIL_RELAY_TOKEN → вставь. Потом нажми «Сохранить» здесь.";
+  };
+  f.querySelector("[data-copy]").onclick = () => navigator.clipboard.writeText(f.token.value).then(() => toast("Ключ скопирован"), () => { f.token.select(); toast("Выдели и скопируй вручную"); });
   f.onsubmit = async e => {
     e.preventDefault();
-    try { S.mail = await rpc("admin_set_mail", { ...T(), p_api_key: f.key.value, p_from: f.from.value, p_from_name: f.name.value }); renderMain(); toast("Сохранено"); }
-    catch (x) { toast(x.message); }
+    if (!S.mail.token_set && !f.token.value) return toast("Сначала создай ключ функции");
+    try {
+      S.mail = await rpc("admin_set_mail", { ...T(), p_function_url: f.fn.value.trim(), p_from: f.from.value, p_from_name: f.name.value, p_relay_token: f.token.value });
+      renderMain(); toast("Сохранено");
+    } catch (x) { toast(x.message); }
   };
   t.onsubmit = async e => {
     e.preventDefault();
@@ -1276,13 +1298,13 @@ function bindMail() {
     st.className = "status saving"; st.textContent = "Отправляю…";
     try {
       const r = await rpc("admin_test_mail", { ...T(), p_to: t.to.value });
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 16; i++) {
         await new Promise(ok => setTimeout(ok, 1500));
         const s2 = await rpc("admin_mail_status", { ...T(), p_request: r.request_id });
-        if (s2.state === "sent") { st.className = "status saved"; st.textContent = "Brevo принял письмо — проверь почту (и папку «Спам»)"; return; }
-        if (s2.state === "failed") { st.className = "status error"; st.textContent = "Brevo отказал (" + s2.status + "): " + s2.details; return; }
+        if (s2.state === "sent") { st.className = "status saved"; st.textContent = "Яндекс принял письмо — проверь почту (и папку «Спам»)"; return; }
+        if (s2.state === "failed") { st.className = "status error"; st.textContent = "Не отправилось" + (s2.status ? " (" + s2.status + ")" : "") + ": " + s2.details; return; }
       }
-      st.className = "status"; st.textContent = "Ответа пока нет — проверь почту через минуту";
+      st.className = "status"; st.textContent = "Ответа пока нет — подожди минуту и проверь почту";
     } catch (x) { st.className = "status error"; st.textContent = x.message; }
   };
 }

@@ -534,6 +534,7 @@ function renderSide() {
     <button class="nav-item" data-act="users" ${S.view === "users" ? 'aria-current="page"' : ""}><span>Все аккаунты</span><span class="count">${S.users.length}</span></button>
     <div class="sect"><span>Настройки</span></div>
     <button class="nav-item" data-act="mail" ${S.view === "mail" ? 'aria-current="page"' : ""}><span>Почта для кодов</span></button>
+    <button class="nav-item" data-act="drive" ${S.view === "drive" ? 'aria-current="page"' : ""}><span>Google Диск</span></button>
     <div class="foot">
       <span>${esc(S.user.full_name || S.user.login)} <span class="muted">· админ</span></span>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -549,6 +550,7 @@ function renderMain() {
   const menu = `<button class="btn menu-btn" data-act="menu" aria-label="Меню">☰ Меню</button>`;
   if (S.view === "users") { el.innerHTML = usersHtml(null, menu); return; }
   if (S.view === "mail") { el.innerHTML = menu + mailHtml(); bindMail(); return; }
+  if (S.view === "drive") { el.innerHTML = menu + driveHtml(); bindDrive(); return; }
   const g = S.groups.find(g => g.id === S.groupId);
   if (!g) {
     el.innerHTML = `${menu}<div class="empty-state" style="margin-top:12vh">
@@ -608,14 +610,11 @@ function scheduleShell() {
       </div>
       <div class="toolbar" style="margin-left:auto">
         <button class="btn" data-act="bells">Время пар и обед</button>
-        <button class="btn" data-act="import">Загрузить из приложения</button>
-        <button class="btn" data-act="export">Скачать файл</button>
         <button class="btn" data-act="print">Печать</button>
       </div>
     </div>
     <div class="grid-wrap"><table class="week" id="grid"></table></div>
-    <p class="small muted" style="margin-top:10px">Нажми на клетку, чтобы поставить пару. Если предметы чередуются, клетка делится чертой: сверху — неделя над чертой, снизу — под чертой.</p>
-    <input type="file" id="importFile" accept=".json,application/json,text/plain" class="hidden">`;
+    <p class="small muted" style="margin-top:10px">Нажми на клетку, чтобы поставить пару. Если предметы чередуются, клетка делится чертой: сверху — неделя над чертой, снизу — под чертой.</p>`;
 }
 
 function cellLessons(day, slot) { return S.sched.lessons.filter(l => l.day === day && l.slot === slot); }
@@ -1042,31 +1041,6 @@ async function reloadPeople() {
   renderSide(); renderMain();
 }
 
-/* ---------- Импорт / экспорт ---------- */
-function importSchedule(file) {
-  const r = new FileReader();
-  r.onload = () => {
-    let x;
-    try { x = JSON.parse(r.result); } catch (e) { return toast("Это не файл расписания"); }
-    if (x.type !== "raspisanie-schedule" || !Array.isArray(x.slots)) return toast("Это не файл расписания из приложения");
-    const g = S.groups.find(g => g.id === S.groupId);
-    if (!confirm(`Заменить расписание группы «${g.name}» расписанием из файла (${(x.lessons || []).length} занятий)?`)) return;
-    S.sched = normalizeSched(x);
-    renderMain(); schedChanged(); toast("Расписание загружено");
-  };
-  r.readAsText(file);
-}
-function exportSchedule() {
-  const g = S.groups.find(g => g.id === S.groupId);
-  const data = { ...S.sched, type: "raspisanie-schedule", v: 1 };
-  data.lessons = data.lessons.map((l, i) => ({ ...l, id: i + 1 }));
-  const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "raspisanie_" + translit(g.name).slice(0, 30) + ".json";
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
 /* ================== Журнал и долги (админ) ================== */
 const GRADES = ["", "5", "4", "3", "2", "зачёт", "незачёт"];
 S.jDate = null; S.jData = null; S.jKey = ""; S.jEdits = {}; S.jMode = "day"; S.jSummary = null; S.debts = null; S.debtsClosed = false;
@@ -1345,6 +1319,146 @@ function myEmailDialog() {
     });
 }
 
+/* ================== Google Диск (файлы ДЗ) ================== */
+const fmtMB = b => b >= 1048576 ? (b / 1048576).toFixed(1).replace(".", ",") + " МБ" : Math.max(1, Math.round(b / 1024)) + " КБ";
+const fmtWhen = s => { if (!s) return ""; const d = new Date(s); return d.toLocaleDateString("ru-RU") + " в " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }); };
+function driveHtml() {
+  const m = S.drive;
+  if (!m) { loadDrive(); return `<p class="muted">Загружаю…</p>`; }
+  const fnUrl = m.function_url || (S.url ? S.url + "/functions/v1/drive-files" : "");
+  const saved = !!m.function_url && m.token_set;
+  const st = m.stats, rep = m.last_report;
+  const repLine = rep ? [
+      rep.moved ? `перенесено из базы: ${rep.moved}` : "",
+      rep.expired || rep.db_gone ? `удалено по сроку: ${(rep.expired || 0) + (rep.db_gone || 0)}` : "",
+      rep.deleted ? `стёрто удалённых: ${rep.deleted}` : "",
+    ].filter(Boolean).join(", ") || "изменений не было" : "";
+  return `
+    <div class="head"><div><h1>Google Диск</h1><p class="sub muted">Файлы к ДЗ хранятся на отдельном Google-аккаунте и открываются только через приложение — по тем же правам, что и задания. Через ${m.keep_days} дн. после выкладки файл удаляется сам.</p></div></div>
+    ${m.pg_net ? "" : `<div class="err">В базе не включено расширение pg_net — ежедневное обслуживание (удаление старых файлов, перенос из базы) не запустится. Supabase → Database → Extensions → pg_net → Enable.</div>`}
+    ${m.error ? `<div class="err">⚠️ ${esc(m.error)}</div>` : ""}
+    <div class="note" style="margin-bottom:14px">${m.ready
+      ? `✅ Файлы ДЗ сохраняются на Google Диск <b>${esc(m.email)}</b>.`
+      : `⚠️ Google Диск не подключён — новые файлы пока сохраняются в базе (до 5 МБ). Порядок: шаг 1 → шаг 2 → шаг 3, подробности — в инструкции «НАСТРОЙКА_GOOGLE_ДИСКА».`}</div>
+
+    <form id="driveForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:680px">
+      <b>Шаг 1. Функция drive-files</b>
+      <label class="field">Адрес функции<input type="text" name="fn" value="${esc(fnUrl)}" placeholder="https://xxxx.supabase.co/functions/v1/drive-files"></label>
+      <div class="field">Ключ функции (DRIVE_RELAY_TOKEN)
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+          <input type="text" name="token" readonly placeholder="${m.token_set ? "сохранён: " + esc(m.token_hint) : "ещё не создан"}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,monospace">
+          <button class="btn" type="button" data-gen>${m.token_set ? "Создать новый" : "Создать ключ"}</button>
+          <button class="btn hidden" type="button" data-copy>Скопировать</button>
+        </div>
+        <span class="small muted" id="dTokenHint">${m.token_set ? "Ключ уже сохранён. Новый понадобится, только если старый потерян — тогда его нужно заменить и в секрете DRIVE_RELAY_TOKEN." : "Нажми «Создать ключ», скопируй и вставь в Supabase → Edge Functions → Secrets как DRIVE_RELAY_TOKEN. Потом нажми «Сохранить»."}</span>
+      </div>
+      <label class="field">Сколько дней хранить файлы<input type="text" inputmode="numeric" name="days" value="${m.keep_days}" style="max-width:140px"></label>
+      <div><button class="btn primary" type="submit">Сохранить</button></div>
+    </form>
+
+    <div class="list" style="padding:18px;display:grid;gap:12px;max-width:680px;margin-top:14px">
+      <b>Шаг 2. Адрес возврата для Google Cloud</b>
+      <span class="small muted">Вставь его в Google Cloud → OAuth-клиент → «Authorized redirect URIs».</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="redirUri" readonly value="${esc((m.function_url || fnUrl) + "/callback")}" style="flex:1;min-width:260px;font-family:ui-monospace,Menlo,monospace"><button class="btn" type="button" data-act="drive-copy-redir">Скопировать</button></div>
+    </div>
+
+    <div class="list" style="padding:18px;display:grid;gap:12px;max-width:680px;margin-top:14px">
+      <b>Шаг 3. Подключение</b>
+      ${m.connected ? `
+        <span>Подключён аккаунт <b>${esc(m.email || "Google")}</b>.</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" type="button" data-act="drive-check">Проверить</button>
+          <button class="btn" type="button" data-act="drive-connect">Подключить заново</button>
+          <button class="btn danger" type="button" data-act="drive-disconnect">Отключить</button>
+          <span id="driveStatus" class="status"></span>
+        </div>` : `
+        <span class="small muted">Откроется вход в Google. Войди в аккаунт для файлов, нажми «Разрешить» и возвращайся сюда.</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn primary" type="button" data-act="drive-connect" ${saved ? "" : "disabled"}>Подключить Google Диск</button>
+          <span id="driveStatus" class="status">${saved ? "" : "Сначала заверши шаг 1"}</span>
+        </div>`}
+    </div>
+
+    <div class="list" style="padding:18px;display:grid;gap:10px;max-width:680px;margin-top:14px">
+      <b>Файлы</b>
+      <div class="small" style="display:grid;gap:4px">
+        <span>На Google Диске: <b>${st.drive_count}</b> ${st.drive_count ? "(" + fmtMB(st.drive_bytes) + ")" : ""}</span>
+        <span>В базе, ждут переноса: <b>${st.db_count}</b> ${st.db_count ? "(" + fmtMB(st.db_bytes) + ")" : ""}</span>
+        <span>Удалено по сроку: <b>${st.gone_count}</b></span>
+        ${st.trash_count ? `<span>Ждут удаления с Диска: <b>${st.trash_count}</b></span>` : ""}
+      </div>
+      <span class="small muted">${m.last_maint ? `Последнее обслуживание: ${fmtWhen(m.last_maint)} — ${esc(repLine)}${rep && rep.errors && rep.errors.length ? `. <span style="color:var(--danger)">Ошибки: ${esc(rep.errors.join("; "))}</span>` : ""}${rep && rep.unfinished ? ". Остальное — при следующем запуске" : ""}` : "Обслуживание ещё не запускалось"}. Оно запускается само раз в сутки: удаляет старые файлы и переносит файлы из базы на Диск.</span>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button" data-act="drive-maint" ${m.ready ? "" : "disabled"}>Запустить сейчас</button><span id="maintStatus" class="status"></span></div>
+    </div>`;
+}
+async function loadDrive() {
+  try { S.drive = await rpc("admin_get_drive", T()); } catch (e) { toast(e.message); return; }
+  if (S.view === "drive") renderMain();
+}
+function bindDrive() {
+  const f = $("#driveForm");
+  if (!f) return;
+  f.querySelector("[data-gen]").onclick = () => {
+    if (S.drive.token_set && !confirm("Создать новый ключ? После сохранения старый перестанет работать — новый нужно будет вставить в секрет DRIVE_RELAY_TOKEN.")) return;
+    f.token.value = newToken().replace(/^rk_/, "dk_");
+    f.querySelector("[data-copy]").classList.remove("hidden");
+    $("#dTokenHint").textContent = "Скопируй ключ → Supabase → Edge Functions → Secrets → DRIVE_RELAY_TOKEN → вставь. Потом нажми «Сохранить» здесь.";
+  };
+  f.querySelector("[data-copy]").onclick = () => navigator.clipboard.writeText(f.token.value).then(() => toast("Ключ скопирован"), () => { f.token.select(); toast("Выдели и скопируй вручную"); });
+  f.onsubmit = async e => {
+    e.preventDefault();
+    if (!S.drive.token_set && !f.token.value) return toast("Сначала создай ключ функции");
+    try {
+      S.drive = await rpc("admin_set_drive", { ...T(), p_function_url: f.fn.value.trim(), p_relay_token: f.token.value, p_keep_days: +f.days.value || 90 });
+      renderMain(); toast("Сохранено");
+    } catch (x) { toast(x.message); }
+  };
+}
+async function driveConnect() {
+  const w = window.open("about:blank", "_blank");   // окно открываем сразу по нажатию, иначе браузер его заблокирует
+  const st = $("#driveStatus");
+  try {
+    const r = await rpc("admin_drive_connect", T());
+    if (w) w.location.href = r.url; else location.href = r.url;
+  } catch (x) { if (w) w.close(); return toast(x.message); }
+  const was = S.drive.connected ? S.drive.email + "|" + S.drive.error : null;
+  if (st) { st.className = "status saving"; st.textContent = "Жду, пока ты нажмёшь «Разрешить» в Google…"; }
+  for (let i = 0; i < 100 && S.view === "drive"; i++) {
+    await new Promise(ok => setTimeout(ok, 3000));
+    let m; try { m = await rpc("admin_get_drive", T()); } catch { continue; }
+    if (m.connected && (was === null || m.email + "|" + m.error !== was || i > 3 && !m.error)) {
+      S.drive = m; renderMain(); toast("Google Диск подключён ✓"); return;
+    }
+  }
+}
+async function driveCheck() {
+  const st = $("#driveStatus");
+  st.className = "status saving"; st.textContent = "Проверяю…";
+  try {
+    const res = await fetch(S.drive.function_url + "/check", { method: "POST", headers: { "x-session": S.token } });
+    const j = await res.json().catch(() => ({ error: "функция ответила " + res.status }));
+    if (!res.ok || !j.ok) throw new Error(j.error || j.msg || ("ошибка " + res.status));
+    st.className = "status saved";
+    st.textContent = `Всё работает: ${j.email}` + (j.limit ? `, занято ${fmtMB(j.used)} из ${Math.round(j.limit / 1073741824)} ГБ` : "") + (j.folder_recreated ? ". Папка на Диске была удалена — создана новая" : "");
+    S.drive = await rpc("admin_get_drive", T());
+  } catch (x) {
+    st.className = "status error";
+    st.textContent = /Failed to fetch|NetworkError|Load failed/.test(x.message) ? "Функция не отвечает — проверь адрес и что drive-files задеплоена (и у неё выключен Verify JWT)" : x.message;
+  }
+}
+async function driveMaint() {
+  const st = $("#maintStatus"), was = S.drive.last_maint;
+  st.className = "status saving"; st.textContent = "Запускаю…";
+  try { await rpc("admin_drive_maintain", T()); } catch (x) { st.className = "status error"; st.textContent = x.message; return; }
+  for (let i = 0; i < 60 && S.view === "drive"; i++) {
+    await new Promise(ok => setTimeout(ok, 2500));
+    const m = await rpc("admin_get_drive", T()).catch(() => null);
+    if (m && m.last_maint !== was) { S.drive = m; renderMain(); toast("Обслуживание закончено"); return; }
+    st.textContent = "Работает…";
+  }
+  st.className = "status"; st.textContent = "Ещё работает — загляни сюда позже";
+}
+
 /* ================== События ================== */
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-act],[data-group],[data-tab],[data-cell]");
@@ -1362,6 +1476,14 @@ document.addEventListener("click", async e => {
       case "menu": side.classList.toggle("open"); break;
       case "users": side.classList.remove("open"); S.view = "users"; renderSide(); renderMain(); break;
       case "mail": side.classList.remove("open"); S.view = "mail"; S.mail = null; renderSide(); renderMain(); break;
+      case "drive": side.classList.remove("open"); S.view = "drive"; S.drive = null; renderSide(); renderMain(); break;
+      case "drive-connect": await driveConnect(); break;
+      case "drive-check": await driveCheck(); break;
+      case "drive-maint": await driveMaint(); break;
+      case "drive-copy-redir": navigator.clipboard.writeText($("#redirUri").value).then(() => toast("Адрес скопирован"), () => { $("#redirUri").select(); toast("Выдели и скопируй вручную"); }); break;
+      case "drive-disconnect":
+        if (!confirm("Отключить Google Диск? Новые файлы снова будут сохраняться в базе, а уже загруженные на Диск не откроются, пока Диск не подключат снова (тем же аккаунтом).")) break;
+        S.drive = await rpc("admin_drive_disconnect", T()); renderMain(); toast("Google Диск отключён"); break;
       case "my-email": myEmailDialog(); break;
       case "new-group": groupDialog(null); break;
       case "rename-group": groupDialog(S.groups.find(g => g.id === S.groupId)); break;
@@ -1377,8 +1499,6 @@ document.addEventListener("click", async e => {
         schedChanged(); break;
       }
       case "bells": bellsDialog(); break;
-      case "import": { const f = $("#importFile"); f.value = ""; f.onchange = () => f.files[0] && importSchedule(f.files[0]); f.click(); break; }
-      case "export": exportSchedule(); break;
       case "print": window.print(); break;
       case "jmode": S.jMode = t.dataset.m; renderMain(); break;
       case "jday": {

@@ -1,7 +1,7 @@
 // Офлайн-режим: оболочка приложения хранится на телефоне, данные — в localStorage.
 // Обновления приходят сами: каждый раз страница запрашивается с сервера в обход кэша браузера,
 // а сохранённая копия используется только без интернета. Номер VERSION менять не обязательно.
-const VERSION = "rasp-web-3";
+const VERSION = "rasp-web-4";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {

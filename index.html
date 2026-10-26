@@ -117,6 +117,7 @@ button.card { display: block; width: 100%; text-align: left; border: 0; }
 .hw.done .tx { color: var(--sub); text-decoration: line-through; }
 .chip { display: flex; align-items: center; gap: 8px; background: var(--primary-soft); color: var(--primary); border-radius: 10px; padding: 7px 10px; margin-top: 6px; border: 0; width: 100%; text-align: left; font-size: 14px; }
 .chip span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.gone { background: var(--card2, rgba(127,127,127,.12)); color: var(--sub); }
 .chip .x { flex: none; color: var(--sub); font-weight: 700; padding: 0 4px; }
 .tappable { cursor: pointer; }
 
@@ -545,8 +546,12 @@ function hwLine(x, showSubject, teacherView) {
       ${head ? `<div class="h">${esc(head)}</div>` : ""}
       ${x.author && !teacherView ? `<div class="sub small">выдал(а): ${esc(x.author)}</div>` : ""}
       ${x.text ? `<div class="tx">${esc(x.text)}</div>` : ""}
-      ${(x.files || []).map(f => `<button class="chip" data-act="file" data-id="${f.id}" data-name="${esc(f.name)}" data-mime="${esc(f.mime)}"><span>${fileIcon(f.mime)}  ${esc(f.name)}</span></button>`).join("")}
+      ${(x.files || []).map(fileChipHtml).join("")}
     </div></div>`;
+}
+function fileChipHtml(f) {
+  const gone = f.store === "gone" && !fileUrls[f.id];
+  return `<button class="chip${gone ? " gone" : ""}" data-act="file" data-id="${f.id}" data-name="${esc(f.name)}" data-mime="${esc(f.mime)}" data-store="${esc(f.store || "db")}"><span>${gone ? "🗑" : fileIcon(f.mime)}  ${esc(f.name)}${gone ? " — удалён по сроку" : ""}</span></button>`;
 }
 function byDateHtml(list, teacherView) {
   const today = epochDay(new Date());
@@ -785,7 +790,7 @@ function settingsHtml() {
       <div style="font-weight:600">Добавь на экран «Домой»</div>
       <div class="sub small" style="margin-top:4px">iPhone: в Safari нажми «Поделиться» <b>⎋</b> → «На экран „Домой“». Android: меню браузера ⋮ → «Добавить на главный экран». Откроется на весь экран, как обычное приложение.</div></div>`}
     <div class="sect">Напоминания</div><div class="card"><div class="sub small">Если на завтра есть невыполненное ДЗ, на экране «Сегодня» появится плашка 🔔. Фоновые уведомления со звуком есть в Android-приложении.</div></div>
-    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 2.1</p>`;
+    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 2.2</p>`;
 }
 
 /* ================== Вход ================== */
@@ -896,7 +901,9 @@ async function busy(label, fn) {
 }
 
 /* ---------- Выдать / изменить ДЗ (учитель) ---------- */
-const MAX_FILE = 5 * 1024 * 1024;
+const filesInfo = () => (S.data && S.data.files) || { mode: "db", max_mb: 5, keep_days: 0 };
+const toDrive = () => filesInfo().mode === "drive" && !!filesInfo().url;
+const maxMb = () => toDrive() ? filesInfo().max_mb || 20 : 5;
 function hwDialog(existing, presetDate, presetSlot, presetSubject, presetGid) {
   const gs = teachingGroups();
   if (!gs.length) return toast("Администратор пока не назначил тебе группы");
@@ -914,7 +921,7 @@ function hwDialog(existing, presetDate, presetSlot, presetSubject, presetGid) {
     <div class="lbl2">Когда (по расписанию группы)</div><select name="w"></select>
     <input type="date" name="d" class="hidden" style="margin-top:8px">
     <div class="lbl2">Задание</div><textarea name="t" placeholder="Что нужно сделать">${esc(isNew ? "" : existing.text)}</textarea>
-    <div class="lbl2">Файлы (до 5 МБ каждый)</div><div id="files"></div>
+    <div class="lbl2">Файлы (до ${maxMb()} МБ каждый${filesInfo().mode === "drive" ? ", хранятся " + filesInfo().keep_days + " дн." : ""})</div><div id="files"></div>
     <label class="btn" style="margin-top:6px;display:block">📎 Прикрепить файл или фото<input type="file" name="f" multiple class="hidden"></label>
     <div class="actions">${isNew ? "" : '<button type="button" class="btn" data-del style="color:var(--danger);flex:0 0 auto">Удалить</button>'}<button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">${isNew ? "Выдать" : "Сохранить"}</button></div>`,
     form => {
@@ -922,8 +929,8 @@ function hwDialog(existing, presetDate, presetSlot, presetSubject, presetGid) {
       const now = new Date();
       const drawFiles = () => {
         const box = form.querySelector("#files");
-        const all = [...st.keep.map((f, i) => ({ name: f.name, k: "keep", i })), ...st.added.map((f, i) => ({ name: f.name, k: "added", i }))];
-        box.innerHTML = all.length ? all.map(x => `<div class="chip"><span>📎 ${esc(x.name)}</span><button type="button" class="x" data-rm="${x.k}:${x.i}" aria-label="Убрать файл">✕</button></div>`).join("")
+        const all = [...st.keep.map((f, i) => ({ name: f.name, k: "keep", i, gone: f.store === "gone" })), ...st.added.map((f, i) => ({ name: f.name, k: "added", i }))];
+        box.innerHTML = all.length ? all.map(x => `<div class="chip${x.gone ? " gone" : ""}"><span>${x.gone ? "🗑" : "📎"} ${esc(x.name)}${x.gone ? " — удалён по сроку" : ""}</span><button type="button" class="x" data-rm="${x.k}:${x.i}" aria-label="Убрать файл">✕</button></div>`).join("")
           : '<div class="sub small">Можно прикрепить PDF, фото, документ…</div>';
         box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
           const [k, i] = b.dataset.rm.split(":");
@@ -961,7 +968,8 @@ function hwDialog(existing, presetDate, presetSlot, presetSubject, presetGid) {
       form.w.onchange = showDate;
       form.f.onchange = () => {
         for (const f of form.f.files) {
-          if (f.size > MAX_FILE) { toast("«" + f.name + "» больше 5 МБ"); continue; }
+          if (f.size > maxMb() * 1024 * 1024) { toast("«" + f.name + "» больше " + maxMb() + " МБ"); continue; }
+          if (!f.size) { toast("«" + f.name + "» — пустой файл"); continue; }
           st.added.push(f);
         }
         form.f.value = ""; drawFiles();
@@ -985,7 +993,16 @@ function hwDialog(existing, presetDate, presetSlot, presetSubject, presetGid) {
         try {
           const r = await call("hw_save", { p_id: isNew ? null : existing.id, p_group: st.gid, p_subject: form.s.value, p_date: date, p_slot: slot, p_text: text });
           for (const f of st.removed) await call("hw_file_delete", { p_file: f.id });
-          for (const f of st.added) await call("hw_file_add", { p_hw: r.id, p_name: f.name, p_mime: f.type || "application/octet-stream", p_data: await toBase64(f) });
+          const total = st.added.reduce((a, f) => a + f.size, 0); let sent = 0;
+          for (const f of st.added) {
+            if (toDrive()) {
+              const up = await driveUpload(r.id, f, n => { btn.textContent = "Загружаю файлы… " + Math.min(99, Math.round((sent + n) / total * 100)) + "%"; });
+              fileUrls[up.id] = URL.createObjectURL(f);   // свой файл открывается сразу, без скачивания
+            } else {
+              await call("hw_file_add", { p_hw: r.id, p_name: f.name, p_mime: f.type || "application/octet-stream", p_data: await toBase64(f) });
+            }
+            sent += f.size;
+          }
           sheet.close(); toast(isNew ? "ДЗ выдано ✓" : "Сохранено ✓"); sync(false);
         } catch (x) {
           btn.disabled = false; btn.textContent = isNew ? "Выдать" : "Сохранить";
@@ -1003,8 +1020,46 @@ function toBase64(file) {
   });
 }
 const fileUrls = {};
-async function openFile(id, name, mime) {
+/* Файлы на Google Диске: загрузка и скачивание через функцию drive-files (по тому же входу) */
+function driveUpload(hwId, file, onProgress) {
+  return new Promise((ok, fail) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", filesInfo().url + "/upload?hw=" + encodeURIComponent(hwId) + "&name=" + encodeURIComponent(file.name));
+    x.setRequestHeader("x-session", S.token);
+    x.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    x.upload.onprogress = e => onProgress && e.lengthComputable && onProgress(e.loaded);
+    x.onload = () => {
+      let j = null; try { j = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status >= 200 && x.status < 300 && j && j.ok) return ok(j.file);
+      const msg = (j && j.error) || ("Ошибка сервера файлов " + x.status);
+      const er = new Error("«" + file.name + "»: " + msg.replace(/^[A-Z_]+: /, "")); er.auth = /^AUTH: сессия/.test(msg); fail(er);
+    };
+    x.onerror = () => fail(new Error("Не удалось загрузить «" + file.name + "»: нет связи. Проверь интернет."));
+    x.send(file);
+  });
+}
+async function driveDownload(id) {
+  let res;
+  try { res = await fetch(filesInfo().url + "/file?id=" + encodeURIComponent(id), { headers: { "x-session": S.token } }); }
+  catch (e) { throw new Error("Не удалось скачать файл: нет связи. Проверь интернет."); }
+  if (!res.ok) {
+    const j = await res.json().catch(() => null), msg = (j && j.error) || ("Ошибка сервера файлов " + res.status);
+    const er = new Error(msg.replace(/^[A-Z_]+: /, "")); er.auth = /^AUTH: сессия/.test(msg); throw er;
+  }
+  return await res.blob();
+}
+async function openFile(id, name, mime, store) {
   try {
+    if (!fileUrls[id] && store === "gone") {
+      return openSheet(`<h2>Файл удалён</h2><p>«${esc(name)}» удалён автоматически: файлы к заданиям хранятся ${filesInfo().keep_days || 90} дн. после выкладки.</p>
+        <div class="actions"><button class="btn primary" data-close>Понятно</button></div>`);
+    }
+    if (!fileUrls[id] && store === "drive") {
+      if (!filesInfo().url) throw new Error("Файлы сейчас недоступны — обнови данные или обратись к администратору");
+      toast("Скачиваю «" + name + "»…");
+      const b = await driveDownload(id);
+      fileUrls[id] = URL.createObjectURL(b.type ? b : new Blob([b], { type: mime || "application/octet-stream" }));
+    }
     if (!fileUrls[id]) {
       toast("Скачиваю «" + name + "»…");
       const r = await call("hw_file_get", { p_file: id });
@@ -1146,7 +1201,7 @@ document.addEventListener("click", async e => {
     case "toggle-closed": S.showClosed = !S.showClosed; rerender(); break;
     case "hw-new": hwDialog(null, t.dataset.date ? parseIso(t.dataset.date) : null, -1, null); break;
     case "hw-edit": if (hw) hwDialog(hw); break;
-    case "file": openFile(id, t.dataset.name, t.dataset.mime); break;
+    case "file": openFile(id, t.dataset.name, t.dataset.mime, t.dataset.store); break;
     case "lesson": {
       const gid = t.dataset.gid || ctx(), d = parseIso(t.dataset.date), slot = +t.dataset.slot, subj = t.dataset.subj;
       const items = [], acts = [];

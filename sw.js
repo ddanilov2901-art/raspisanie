@@ -1,6 +1,6 @@
 // Офлайн-режим: оболочка приложения хранится на телефоне, данные — в localStorage.
 // Чтобы у всех обновилась версия, поменяй номер VERSION.
-const VERSION = "rasp-web-1";
+const VERSION = "rasp-web-2";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {

@@ -306,7 +306,7 @@ const has = r => !!U() && (U().roles || []).includes(r);
 const isAdmin = () => has("admin");
 const groups = () => S.data ? S.data.groups : [];
 const group = id => groups().find(g => g.id === id);
-const gname = id => (group(id) || {}).name || "";
+const gname = id => id === "__me" ? "Моё расписание" : (group(id) || {}).name || "";
 const isStudent = () => has("student") && !!U().group_id;
 const teaches = gid => isAdmin() || (has("teacher") && (U().teacher_groups || []).includes(gid));
 const canTeach = (gid, subj) => isAdmin() || (teaches(gid) && (U().teacher_subjects || []).some(t => t.trim().toLowerCase() === String(subj || "").trim().toLowerCase()));
@@ -325,13 +325,37 @@ function sched(gid) {
 }
 const subjectsFor = gid => isAdmin() ? [...new Set(sched(gid).lessons.map(l => l.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"))
   : (teaches(gid) ? (U().teacher_subjects || []).slice() : []);
+const ME = "__me";
+const hasPersonal = () => has("teacher") && (U().teacher_groups || []).length > 0 && (U().teacher_subjects || []).length > 0;
+const assigned = (gid, subj) => has("teacher") && (U().teacher_groups || []).includes(gid) && (U().teacher_subjects || []).some(t => t.trim().toLowerCase() === String(subj || "").trim().toLowerCase());
+/** Пары учителя на дату — из расписаний всех его групп, только его предметы */
+function myLessonsOn(d) {
+  const out = [];
+  for (const gid of (U().teacher_groups || [])) {
+    if (!group(gid)) continue;
+    const s = sched(gid);
+    for (const l of lessonsOn(s, d)) if (assigned(gid, l.subject)) out.push({ gid, l, sl: slotOf(s, l.slot) });
+  }
+  return out.sort((a, b) => a.sl.start - b.sl.start || gname(a.gid).localeCompare(gname(b.gid), "ru"));
+}
+function myDayToShow(now) {
+  const today = dayStart(now), minute = now.getHours() * 60 + now.getMinutes();
+  if (dow(today) <= 5 && myLessonsOn(today).some(x => x.sl.end > minute)) return today;
+  let d = addDays(today, 1);
+  for (let i = 0; i < 21; i++, d = addDays(d, 1)) if (dow(d) <= 5 && myLessonsOn(d).length) return d;
+  d = addDays(today, 1); while (dow(d) > 5) d = addDays(d, 1);
+  return d;
+}
+const ctxChoices = () => [...(hasPersonal() ? [{ id: ME, name: "Моё расписание" }] : []), ...groups()];
 function defaultGroup() {
   const u = U(); if (!u) return null;
+  if (hasPersonal() && !isStudent()) return ME;
   for (const id of [isStudent() ? u.group_id : null, has("headman") ? u.headman_group : null, ...(u.teacher_groups || []), ...(u.curator_groups || [])])
     if (id && group(id)) return id;
   return groups()[0] ? groups()[0].id : null;
 }
-const ctx = () => (S.ctx && group(S.ctx)) ? S.ctx : defaultGroup();
+const ctx = () => (S.ctx === ME && hasPersonal()) || (S.ctx && group(S.ctx)) ? S.ctx : defaultGroup();
+const personal = () => S.data && ctx() === ME;
 const hwOf = gid => (S.data ? S.data.homework : []).filter(h => h.group_id === gid);
 const debts = () => S.data ? S.data.debts : [];
 function badgeCount() {
@@ -420,17 +444,18 @@ function screen() {
 function groupChipHtml(current, list, act) {
   if (!current) return "";
   const many = list.length > 1;
-  return `<button class="groupchip" ${many ? `data-act="${act}"` : "disabled"}><span class="sub">Группа</span><b>${esc(gname(current))}</b><span class="grow"></span>${many ? '<span class="sub">сменить ▾</span>' : ""}</button>`;
+  return `<button class="groupchip" ${many ? `data-act="${act}"` : "disabled"}><span class="sub">${current === ME ? "Показано" : "Группа"}</span><b>${esc(gname(current))}</b><span class="grow"></span>${many ? '<span class="sub">сменить ▾</span>' : ""}</button>`;
 }
 
 /* ---------- Сегодня ---------- */
 function homeHtml() {
+  if (personal()) return teacherHomeHtml();
   const gid = ctx();
   if (!gid) return emptyHtml("Тебя ещё не добавили в группу", "Как только администратор добавит — здесь появится расписание.", true);
   const s = sched(gid), now = new Date(), today = dayStart(now), nowMin = now.getHours() * 60 + now.getMinutes();
   const auto = !S.browse, d = auto ? dayToShow(s, now) : S.browse;
   const wt = weekTypeOf(s, d);
-  let h = groups().length > 1 ? groupChipHtml(gid, groups(), "pick-ctx") : "";
+  let h = ctxChoices().length > 1 ? groupChipHtml(gid, ctxChoices(), "pick-ctx") : "";
 
   // Вместо напоминания-будильника: ДЗ на завтра
   if (isStudent() && gid === U().group_id) {
@@ -471,17 +496,37 @@ function lunchHtml(s, isToday, nowMin) {
   const now = isToday && nowMin >= s.lunchStart && nowMin < s.lunchEnd;
   return `<div class="lunch" style="${isToday && nowMin >= s.lunchEnd ? "opacity:.55" : ""}"><span>🍽</span><b>Обед</b><span class="grow"></span><span class="sub">${now ? "<b>сейчас</b> · " : ""}${hhmm(s.lunchStart)} – ${hhmm(s.lunchEnd)}</span></div>`;
 }
-function lessonHtml(l, sl, d, isToday, nowMin, hw, gid) {
+function teacherHomeHtml() {
+  const now = new Date(), today = dayStart(now), nowMin = now.getHours() * 60 + now.getMinutes();
+  const auto = !S.browse, d = auto ? myDayToShow(now) : S.browse;
+  let h = groupChipHtml(ME, ctxChoices(), "pick-ctx");
+  let note = "";
+  if (auto && !sameDay(d, today)) note = dow(today) > 5 ? "Сегодня выходной — показываю ближайший день с твоими парами"
+    : myLessonsOn(today).length ? "Твои пары на сегодня закончились — показываю следующий день" : "Сегодня у тебя пар нет — показываю ближайший день с парами";
+  h += `<div class="card">
+    <div class="row"><div class="grow"><div class="day-title">${relDay(d)}</div><div class="sub">${DAY_FULL[d.getDay()]}, ${dateLong(d)}</div></div>
+      <button class="arrow" data-act="day" data-d="-1" aria-label="Предыдущий день">‹</button><button class="arrow" data-act="day" data-d="1" aria-label="Следующий день">›</button></div>
+    <div class="row" style="margin-top:10px"><span class="pill p-primary">Моё расписание</span><span class="grow"></span>${auto ? "" : '<button class="link" data-act="day-auto">К актуальному дню</button>'}</div>
+    ${note ? `<div class="sub small" style="margin-top:10px">${note}</div>` : ""}</div>`;
+  const list = myLessonsOn(d), isToday = sameDay(d, today);
+  if (!list.length) h += emptyHtml("Пар нет", "Расписание собирается из расписаний твоих групп по твоим предметам: " + (U().teacher_subjects || []).join(", ") + ".", false);
+  for (const x of list) {
+    const hw = hwOf(x.gid).filter(w => epochDay(parseIso(w.date)) === epochDay(d) && (w.slot === x.l.slot || (w.slot < 0 && w.subject.toLowerCase() === x.l.subject.toLowerCase())));
+    h += lessonHtml(x.l, x.sl, d, isToday, nowMin, hw, x.gid, gname(x.gid));
+  }
+  return h + `<button class="btn full" data-act="hw-new" data-date="${iso(d)}">+ Выдать ДЗ</button>`;
+}
+function lessonHtml(l, sl, d, isToday, nowMin, hw, gid, label) {
   const cur = isToday && nowMin >= sl.start && nowMin < sl.end, past = isToday && nowMin >= sl.end;
-  const meta = [l.kind, l.room ? "ауд. " + l.room : "", l.teacher].filter(Boolean).join(" · ");
+  const meta = [l.kind, l.room ? "ауд. " + l.room : "", label ? "" : l.teacher].filter(Boolean).join(" · ");
   let pills = "";
   if (l.week) pills += `<span class="pill ${l.week === 1 ? "p-over" : "p-under"}">${weekName(l.week)}</span>`;
   if (cur) pills += `<span class="pill p-primary">Идёт · до ${hhmm(sl.end)}</span>`;
   else if (isToday && !past && sl.start - nowMin <= 120) { const m = sl.start - nowMin; pills += `<span class="pill p-ok">Через ${m >= 60 ? Math.floor(m / 60) + " ч " + (m % 60) + " мин" : m + " мин"}</span>`; }
   const actions = canTeach(gid, l.subject) || canOpenJournal(gid);
-  return `<div class="card ${cur ? "current" : ""} ${past ? "past" : ""} ${actions ? "tappable" : ""}" ${actions ? `data-act="lesson" data-slot="${l.slot}" data-subj="${esc(l.subject)}" data-date="${iso(d)}" role="button" tabindex="0"` : ""}>
+  return `<div class="card ${cur ? "current" : ""} ${past ? "past" : ""} ${actions ? "tappable" : ""}" ${actions ? `data-act="lesson" data-gid="${gid}" data-slot="${l.slot}" data-subj="${esc(l.subject)}" data-date="${iso(d)}" role="button" tabindex="0"` : ""}>
     <div class="lesson"><div class="left"><span class="num">${sl.num}</span><div class="t1">${hhmm(sl.start)}</div><div class="t2">${hhmm(sl.end)}</div></div>
-    <div class="grow"><div class="subj">${esc(l.subject)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ""}${pills ? `<div class="pills">${pills}</div>` : ""}
+    <div class="grow"><div class="subj">${esc(l.subject)}</div>${label ? `<div class="small" style="color:var(--primary);font-weight:600">${esc(label)}</div>` : ""}${meta ? `<div class="meta">${esc(meta)}</div>` : ""}${pills ? `<div class="pills">${pills}</div>` : ""}
     ${hw.length ? `<div class="sep"></div>${hw.map(x => hwLine(x, false, false)).join("")}` : ""}</div></div></div>`;
 }
 function emptyHtml(t, sub, refresh) {
@@ -547,7 +592,27 @@ function hwHtml() {
 }
 
 /* ---------- Расписание ---------- */
+function teacherWeekHtml() {
+  const today = dayStart(new Date());
+  const mon = addDays(mondayOf(dow(today) > 5 ? addDays(today, 7) : today), 7 * (S.myWeek || 0));
+  const w = S.myWeek || 0;
+  let h = groupChipHtml(ME, ctxChoices(), "pick-ctx");
+  h += `<div class="card"><div class="row"><div class="grow"><b style="font-size:18px">${w === 0 ? (dow(today) > 5 ? "Наступающая неделя" : "Эта неделя") : w === 1 ? "Следующая неделя" : w === -1 ? "Прошлая неделя" : "Неделя"}</b>
+      <div class="sub small">${ddmm(mon)} – ${ddmm(addDays(mon, 4))} · обновлено ${syncedAgo()}</div></div>
+      <button class="arrow" data-act="myweek" data-d="-1" aria-label="Предыдущая неделя">‹</button><button class="arrow" data-act="myweek" data-d="1" aria-label="Следующая неделя">›</button></div>
+    <div class="sub small" style="margin-top:8px">Собрано из расписаний групп ${esc((U().teacher_groups || []).filter(group).map(gname).join(", "))} по твоим предметам. Над/под чертой у каждой группы считается отдельно.</div></div>`;
+  h += `<div class="days">${[1, 2, 3, 4, 5].map(i => `<button aria-pressed="${S.schedDay === i}" data-act="sday" data-d="${i}">${["", "Пн", "Вт", "Ср", "Чт", "Пт"][i]}<small>${myLessonsOn(addDays(mon, i - 1)).length || "–"}</small></button>`).join("")}</div>`;
+  const d = addDays(mon, S.schedDay - 1), list = myLessonsOn(d);
+  h += `<div class="sect">${DAY_TITLE[d.getDay()]}, ${dateLong(d)}</div>`;
+  if (!list.length) h += emptyHtml("Пар нет", "В этот день у тебя нет занятий.", false);
+  for (const x of list) h += `<button class="card" data-act="lesson" data-gid="${x.gid}" data-slot="${x.l.slot}" data-subj="${esc(x.l.subject)}" data-date="${iso(d)}">
+      <div class="row" style="align-items:flex-start"><div style="width:56px"><b>${hhmm(x.sl.start)}</b><div class="sub small">${hhmm(x.sl.end)}</div></div>
+      <div class="grow"><div style="font-weight:600">${esc(x.l.subject)}</div><div class="small" style="color:var(--primary)">${esc([gname(x.gid), x.sl.num + " пара", x.l.kind, x.l.room ? "ауд. " + x.l.room : ""].filter(Boolean).join(" · "))}</div>
+      ${x.l.week ? `<div class="pills"><span class="pill ${x.l.week === 1 ? "p-over" : "p-under"}">${weekName(x.l.week)}</span></div>` : ""}</div></div></button>`;
+  return h + `<button class="btn full" data-act="sync">Обновить</button>`;
+}
 function schedHtml() {
+  if (personal()) return teacherWeekHtml();
   const gid = ctx();
   if (!gid) return emptyHtml("Тебя ещё не добавили в группу", "Как только администратор добавит — здесь появится расписание.", true);
   const s = sched(gid);
@@ -555,7 +620,7 @@ function schedHtml() {
   const wt = weekTypeOf(s, ref);
   let h = `<div class="card" style="background:var(--primary-soft)"><div class="row"><div class="grow"><b style="color:var(--primary);font-size:17px">Группа ${esc(gname(gid))}</b>
       <div class="sub small">Расписание ведёт администратор · обновлено ${syncedAgo()}</div></div><button class="btn" style="background:var(--card)" data-act="sync">Обновить</button></div>
-      ${groups().length > 1 ? '<button class="link" data-act="pick-ctx" style="margin-top:6px">Другая группа ▾</button>' : ""}</div>`;
+      ${ctxChoices().length > 1 ? `<button class="link" data-act="pick-ctx" style="margin-top:6px">${hasPersonal() ? "Моё расписание или другая группа ▾" : "Другая группа ▾"}</button>` : ""}</div>`;
   h += `<div class="card"><div class="row"><span class="grow">${dow(new Date()) > 5 ? "Наступающая неделя" : "Эта неделя"}</span><span class="pill ${wt === 1 ? "p-over" : "p-under"}">${weekName(wt)}</span></div>
     <div class="sub small" style="margin-top:8px">${s.slots.map(x => `${x.num} пара ${hhmm(x.start)}–${hhmm(x.end)}`).join(" · ")}${s.lunchEnabled ? ` · обед ${hhmm(s.lunchStart)}–${hhmm(s.lunchEnd)}` : ""}</div></div>`;
   h += `<div class="days">${[1, 2, 3, 4, 5].map(i => `<button aria-pressed="${S.schedDay === i}" data-act="sday" data-d="${i}">${["", "Пн", "Вт", "Ср", "Чт", "Пт"][i]}<small>${s.lessons.filter(l => l.day === i).length || "–"}</small></button>`).join("")}</div>`;
@@ -630,9 +695,9 @@ function debtsHtml() {
 const GRADES = ["", "5", "4", "3", "2", "зачёт", "незачёт"];
 function journalHtml() {
   const jg = journalGroups();
-  if (!S.jGroup || !canOpenJournal(S.jGroup)) S.jGroup = (U().headman_group && canOpenJournal(U().headman_group)) ? U().headman_group : (canOpenJournal(ctx()) ? ctx() : (jg[0] || {}).id);
+  if (!S.jGroup || !canOpenJournal(S.jGroup)) S.jGroup = (U().headman_group && canOpenJournal(U().headman_group)) ? U().headman_group : (ctx() !== ME && canOpenJournal(ctx()) ? ctx() : (jg[0] || {}).id);
   const gid = S.jGroup;
-  if (!gid) return emptyHtml("Журнал недоступен", "Посещаемость отмечает староста, оценки ставят преподаватели, смотрит куратор.", false);
+  if (!gid) return emptyHtml("Журнал недоступен", "Н и оценки ставят преподаватели, староста и куратор смотрят.", false);
   const canSummary = canViewJournal(gid);
   if (!canSummary) S.jMode = "day";
   let h = groupChipHtml(gid, jg, "pick-jgroup");
@@ -649,7 +714,7 @@ function journalHtml() {
   if (!data) loadJournal(gid, d);
   for (const l of ls) {
     const sl = slotOf(s, l.slot);
-    const mark = isHeadman(gid), grade = canTeach(gid, l.subject);
+    const grade = canTeach(gid, l.subject), mark = grade;
     let sum = "загрузка…";
     if (data) {
       const e = data.entries.filter(x => x.slot === sl.num);
@@ -657,10 +722,10 @@ function journalHtml() {
       sum = abs || gr ? `Н: ${abs} · оценок: ${gr}` : "отметок нет";
     }
     h += `<button class="card" ${data ? `data-act="att" data-slot="${sl.num}" data-subj="${esc(l.subject)}"` : "disabled"}><div class="row"><span class="num">${sl.num}</span><div class="grow"><div style="font-weight:600">${esc(l.subject)}</div>
-      <div class="sub small">${hhmm(sl.start)}–${hhmm(sl.end)} · ${sum}</div></div><span style="color:var(--primary);font-weight:600;font-size:14px">${mark && grade ? "Отметить ›" : mark ? "Посещаемость ›" : grade ? "Оценки ›" : "Открыть ›"}</span></div></button>`;
+      <div class="sub small">${hhmm(sl.start)}–${hhmm(sl.end)} · ${sum}</div></div><span style="color:var(--primary);font-weight:600;font-size:14px">${grade ? "Отметить ›" : "Открыть ›"}</span></div></button>`;
   }
-  const hint = isHeadman(gid) ? "Нажми на пару, чтобы отметить отсутствующих. За каждую Н у ученика появится долг. Оценки ставят преподаватели."
-    : teaches(gid) ? "Нажми на свою пару, чтобы поставить оценки. Н отмечает староста." : "";
+  const hint = teaches(gid) ? "Нажми на свою пару, чтобы отметить отсутствующих и поставить оценки. За каждую Н у ученика появится долг."
+    : "Журнал только для просмотра: Н и оценки ставят преподаватели своих предметов.";
   return h + (hint ? `<p class="sub small" style="padding:0 4px">${hint}</p>` : "");
 }
 async function loadJournal(gid, d) {
@@ -710,45 +775,98 @@ function settingsHtml() {
       ${has("teacher") ? `<div class="sub small">Предметы: ${esc((u.teacher_subjects || []).join(", ") || "не назначены")}</div>` : ""}
       <button class="link" data-act="sync" style="margin-top:8px">Обновить данные · ${syncedAgo()}</button>
       <div class="row" style="margin-top:10px"><button class="btn grow" data-act="password">Сменить пароль</button><button class="btn grow" data-act="logout">Выйти</button></div></div>
+    <div class="sect">Безопасность</div><div class="card">
+      <div class="row"><div class="grow"><div style="font-weight:600">Почта</div><div class="small ${u.email_verified ? "" : "sub"}">${u.email_verified ? esc(u.email) : "Не привязана — пароль можно восстановить только через администратора"}</div></div>
+        <button class="btn" data-act="email">${u.email_verified ? "Сменить" : "Привязать"}</button></div>
+      ${u.email_verified ? `<div class="row" style="margin-top:14px"><div class="grow"><div style="font-weight:600">Вход по коду из письма</div><div class="sub small">После пароля на почту приходит код</div></div>
+        <button class="btn ${u.twofa ? "ok" : ""}" data-act="twofa">${u.twofa ? "Включён" : "Выключен"}</button></div>
+        <button class="link danger" data-act="email-remove" style="margin-top:8px">Отвязать почту</button>` : ""}</div>
     ${standalone ? "" : `<div class="sect">Как приложение</div><div class="card">
       <div style="font-weight:600">Добавь на экран «Домой»</div>
       <div class="sub small" style="margin-top:4px">iPhone: в Safari нажми «Поделиться» <b>⎋</b> → «На экран „Домой“». Android: меню браузера ⋮ → «Добавить на главный экран». Откроется на весь экран, как обычное приложение.</div></div>`}
     <div class="sect">Напоминания</div><div class="card"><div class="sub small">Если на завтра есть невыполненное ДЗ, на экране «Сегодня» появится плашка 🔔. Фоновые уведомления со звуком есть в Android-приложении.</div></div>
-    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 1.0</p>`;
+    <p class="sub small" style="text-align:center;margin-top:16px">Расписание · веб-версия 2.0</p>`;
 }
 
 /* ================== Вход ================== */
+const L = { step: "login", ticket: null, email: "", resetLogin: "", err: "" };   // login | code | reset1 | reset2
 function loginHtml() {
-  return `<div class="login">
-    <div class="logo"><img src="icons/icon-192.png" alt=""><h1>Расписание</h1></div>
-    <form id="loginForm" class="card" style="padding:18px">
+  const e = L.err ? `<div class="err">${esc(L.err)}</div>` : "";
+  let body;
+  if (L.step === "code") body = `
+      <div style="font-weight:700;font-size:20px">Код из письма</div>
+      <div class="sub small" style="margin-top:4px">Мы отправили 6-значный код на ${esc(L.email)}. Он действует 10 минут.</div>
+      <label for="cd">Код</label><input id="cd" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
+      ${e}<button class="btn primary full" style="margin-top:16px" type="submit">Войти</button>
+      <div class="row"><button type="button" class="link" data-l="resend">Отправить ещё раз</button><span class="grow"></span><button type="button" class="link" data-l="back" style="color:var(--sub)">Назад</button></div>`;
+  else if (L.step === "reset1" || L.step === "reset2") body = `
+      <div style="font-weight:700;font-size:20px">Новый пароль</div>
+      <div class="sub small" style="margin-top:4px">${L.step === "reset1" ? "Введи логин — пришлём код на почту, привязанную к аккаунту." : "Код отправлен на " + esc(L.email) + ". Введи его и придумай новый пароль."}</div>
+      <label for="lg">Логин</label><input id="lg" name="login" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(L.resetLogin)}" ${L.step === "reset2" ? "readonly" : ""} required>
+      ${L.step === "reset2" ? `<label for="cd">Код из письма</label><input id="cd" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
+      <label for="np">Новый пароль (от 6 символов)</label><input id="np" name="password" type="password" autocomplete="new-password" required>` : ""}
+      ${e}<button class="btn primary full" style="margin-top:16px" type="submit">${L.step === "reset1" ? "Получить код" : "Сменить пароль и войти"}</button>
+      <button type="button" class="link" data-l="back" style="color:var(--sub)">Назад ко входу</button>`;
+  else body = `
       <div style="font-weight:700;font-size:20px">Вход</div>
       <div class="sub small" style="margin-top:4px">Войди под логином и паролем, которые выдал администратор.</div>
       <label for="lg">Логин</label><input id="lg" name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required placeholder="например, ivanov.i">
       <label for="pw">Пароль</label><input id="pw" name="password" type="password" autocomplete="current-password" required>
-      <div id="lerr" class="err hidden"></div>
-      <button class="btn primary full" style="margin-top:16px" type="submit">Войти</button>
-    </form>
+      ${e}<button class="btn primary full" style="margin-top:16px" type="submit">Войти</button>
+      <button type="button" class="link" data-l="forgot">Забыл пароль?</button>`;
+  return `<div class="login">
+    <div class="logo"><img src="icons/icon-192.png" alt=""><h1>Расписание</h1></div>
+    <form id="loginForm" class="card" style="padding:18px" novalidate>${body}</form>
     <p class="sub small" style="text-align:center">Нет логина? Его выдаёт администратор твоего учебного заведения.</p></div>`;
+}
+function afterLogin(r) {
+  S.token = r.token; LS.set("rasp_token", r.token);
+  S.data = null; S.tab = "home"; Object.keys(done).forEach(k => delete done[k]); saveDone();
+  L.step = "login"; L.err = ""; L.ticket = null;
+  render();
+  sync(false).then(() => toast("Привет, " + (r.user.full_name || r.user.login) + "!"));
 }
 function bindLogin() {
   const f = $("#loginForm");
+  const device = "web " + (navigator.platform || "");
+  f.querySelectorAll("[data-l]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.l;
+    L.err = "";
+    if (a === "forgot") { L.step = "reset1"; L.resetLogin = f.login ? f.login.value.trim() : ""; }
+    if (a === "back") { L.step = "login"; L.ticket = null; }
+    if (a === "resend") { try { const r = await rpc("login_resend", { p_ticket: L.ticket }); toast("Код отправлен на " + r.email); } catch (x) { L.err = x.message; } }
+    render();
+  });
   f.onsubmit = async e => {
     e.preventDefault();
-    const btn = f.querySelector("button[type=submit]"), er = $("#lerr");
-    btn.disabled = true; btn.textContent = "Вхожу…"; er.classList.add("hidden");
+    const btn = f.querySelector("button[type=submit]"), label = btn.textContent;
+    btn.disabled = true; btn.textContent = "Подожди…"; L.err = "";
     try {
-      const r = await rpc("login", { p_login: f.login.value.trim(), p_password: f.password.value, p_device: "web " + (navigator.platform || "") });
-      S.token = r.token; LS.set("rasp_token", r.token);
-      S.data = null; S.tab = "home"; Object.keys(done).forEach(k => delete done[k]); saveDone();
-      render();
-      await sync(false);
-      toast("Привет, " + (r.user.full_name || r.user.login) + "!");
+      if (L.step === "login") {
+        if (!f.login.value.trim() || !f.password.value) throw new Error("Введи логин и пароль");
+        const r = await rpc("login", { p_login: f.login.value.trim(), p_password: f.password.value, p_device: device });
+        if (r.need_code) { L.step = "code"; L.ticket = r.ticket; L.email = r.email; render(); return; }
+        return afterLogin(r);
+      }
+      if (L.step === "code") return afterLogin(await rpc("login_code", { p_ticket: L.ticket, p_code: f.code.value.trim(), p_device: device }));
+      if (L.step === "reset1") {
+        L.resetLogin = f.login.value.trim();
+        if (!L.resetLogin) throw new Error("Введи логин");
+        const r = await rpc("reset_start", { p_login: L.resetLogin });
+        if (!r.ok) throw new Error(r.message);
+        L.step = "reset2"; L.email = r.email; render(); return;
+      }
+      if (L.step === "reset2") {
+        if (f.password.value.length < 6) throw new Error("Пароль — от 6 символов");
+        const r = await rpc("reset_finish", { p_login: L.resetLogin, p_code: f.code.value.trim(), p_new_password: f.password.value, p_device: device });
+        toast("Пароль изменён ✓");
+        return afterLogin(r);
+      }
     } catch (x) {
-      er.textContent = x.message; er.classList.remove("hidden");
-      btn.disabled = false; btn.textContent = "Войти";
+      L.err = x.message; render();
     }
   };
+  const first = f.querySelector("input:not([readonly])"); if (first) first.focus();
 }
 
 /* ================== Листы (диалоги) ================== */
@@ -779,11 +897,11 @@ async function busy(label, fn) {
 
 /* ---------- Выдать / изменить ДЗ (учитель) ---------- */
 const MAX_FILE = 5 * 1024 * 1024;
-function hwDialog(existing, presetDate, presetSlot, presetSubject) {
+function hwDialog(existing, presetDate, presetSlot, presetSubject, presetGid) {
   const gs = teachingGroups();
   if (!gs.length) return toast("Администратор пока не назначил тебе группы");
   const isNew = !existing;
-  const startG = isNew ? (teaches(ctx()) ? ctx() : gs[0].id) : existing.group_id;
+  const startG = isNew ? (presetGid && teaches(presetGid) ? presetGid : teaches(ctx()) ? ctx() : gs[0].id) : existing.group_id;
   const st = {
     gid: startG, subj: isNew ? presetSubject : existing.subject,
     date: isNew ? presetDate : parseIso(existing.date), slot: isNew ? presetSlot : existing.slot,
@@ -915,14 +1033,14 @@ function debtTaskDialog(d) {
 /* ---------- Журнал: отметки на паре ---------- */
 function attendanceDialog(gid, d, slotNum, subject) {
   const data = S.jCache[gid + "|" + iso(d)];
-  const mark = isHeadman(gid), gradeEdit = canTeach(gid, subject), edit = mark || gradeEdit;
+  const gradeEdit = canTeach(gid, subject), mark = gradeEdit, edit = gradeEdit;
   if (!data.students.length) return toast("В группе пока нет учеников — их добавляет администратор");
   const ent = {};
   data.entries.filter(x => x.slot === slotNum).forEach(x => ent[x.student_id] = x);
   const abs = {};
   data.students.forEach(s => abs[s.id] = !!(ent[s.id] && ent[s.id].absent));
   openSheet(`<h2>${esc(subject)}</h2><div class="sub small">${DAY_FULL[d.getDay()]}, ${dateLong(d)} · ${slotNum} пара</div>
-    ${edit ? `<div class="sub small" style="margin-top:2px">${mark && gradeEdit ? "Н и оценки" : mark ? "Отметь отсутствующих — оценки ставит преподаватель" : "Поставь оценки — Н отмечает староста"}</div>` : ""}
+    ${edit ? `<div class="sub small" style="margin-top:2px">Отметь отсутствующих и поставь оценки. За Н у ученика появится долг.</div>` : `<div class="sub small" style="margin-top:2px">Только просмотр</div>`}
     <div style="margin-top:8px">${data.students.map(s => {
       const g = ent[s.id] ? ent[s.id].grade : "";
       return `<div class="att ${abs[s.id] ? "abs" : ""}" data-sid="${s.id}"><span class="nm">${esc(s.full_name)}</span>
@@ -954,6 +1072,36 @@ function attendanceDialog(gid, d, slotNum, subject) {
     });
 }
 
+function passwordPrompt(title, ok) {
+  openSheet(`<h2>${esc(title)}</h2><div class="lbl2">Твой пароль</div><input type="password" name="p" autocomplete="current-password">
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Подтвердить</button></div>`,
+    form => form.onsubmit = e => { e.preventDefault(); const v = form.p.value; sheet.close(); ok(v); });
+}
+function emailDialog() {
+  openSheet(`<h2>${U().email_verified ? "Сменить почту" : "Привязать почту"}</h2>
+    <div class="sub small">На почту будут приходить коды для входа и для восстановления пароля.</div>
+    <div class="lbl2">Почта</div><input type="text" name="em" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="name@example.com">
+    <div id="codeBox" class="hidden"><div class="lbl2">Код из письма</div><input type="text" name="cd" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div>
+    <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">Отправить код</button></div>`,
+    form => {
+      let sent = false;
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const btn = form.querySelector("[type=submit]"); btn.disabled = true;
+        try {
+          if (!sent) {
+            const r = await call("email_start", { p_email: form.em.value });
+            sent = true; form.em.readOnly = true; form.querySelector("#codeBox").classList.remove("hidden"); form.cd.focus();
+            btn.textContent = "Подтвердить"; toast("Код отправлен на " + r.email);
+          } else {
+            await call("email_confirm", { p_code: form.cd.value });
+            sheet.close(); toast("Почта привязана ✓ Теперь при входе придёт код"); sync(false);
+          }
+        } catch (x) { sheetError(form, x.message); }
+        btn.disabled = false;
+      };
+    });
+}
 function passwordDialog() {
   openSheet(`<h2>Сменить пароль</h2><div class="lbl2">Текущий пароль</div><input type="password" name="o" autocomplete="current-password">
     <div class="lbl2">Новый пароль (от 6 символов)</div><input type="password" name="n" autocomplete="new-password">
@@ -984,11 +1132,15 @@ document.addEventListener("click", async e => {
   switch (a) {
     case "settings": S.tab = "settings"; render(); break;
     case "sync": sync(true); break;
-    case "day": { const s = sched(ctx()); S.browse = stepWeekday(S.browse || dayToShow(s, new Date()), +t.dataset.d); render(); break; }
+    case "day": { const base = S.browse || (personal() ? myDayToShow(new Date()) : dayToShow(sched(ctx()), new Date())); S.browse = stepWeekday(base, +t.dataset.d); render(); break; }
     case "day-auto": S.browse = null; render(); break;
-    case "pick-ctx": choose("Какую группу показать?", groups().map(g => g.name), i => { S.ctx = groups()[i].id; LS.set("rasp_ctx", S.ctx); S.browse = null; render(); }); break;
+    case "pick-ctx": { const ch = ctxChoices(); choose("Что показать?", ch.map(g => g.name), i => { S.ctx = ch[i].id; LS.set("rasp_ctx", S.ctx); S.browse = null; render(); }); break; }
     case "pick-jgroup": { const jg = journalGroups(); choose("Журнал какой группы?", jg.map(g => g.name), i => { S.jGroup = jg[i].id; render(); }); break; }
     case "sday": S.schedDay = +t.dataset.d; rerender(); break;
+    case "myweek": S.myWeek = (S.myWeek || 0) + +t.dataset.d; rerender(); break;
+    case "email": emailDialog(); break;
+    case "email-remove": passwordPrompt("Отвязать почту", pw => call("email_remove", { p_password: pw }).then(() => { toast("Почта отвязана"); sync(false); }).catch(x => toast(x.message))); break;
+    case "twofa": passwordPrompt(U().twofa ? "Выключить вход по коду" : "Включить вход по коду", pw => call("set_twofa", { p_on: !U().twofa, p_password: pw }).then(() => { toast("Сохранено ✓"); sync(false); }).catch(x => toast(x.message))); break;
     case "hw-done": done[id] ? delete done[id] : (done[id] = 1); saveDone(); rerender(); break;
     case "toggle-done": S.showDone = !S.showDone; rerender(); break;
     case "toggle-closed": S.showClosed = !S.showClosed; rerender(); break;
@@ -996,18 +1148,16 @@ document.addEventListener("click", async e => {
     case "hw-edit": if (hw) hwDialog(hw); break;
     case "file": openFile(id, t.dataset.name, t.dataset.mime); break;
     case "lesson": {
-      const gid = ctx(), d = parseIso(t.dataset.date), slot = +t.dataset.slot, subj = t.dataset.subj;
+      const gid = t.dataset.gid || ctx(), d = parseIso(t.dataset.date), slot = +t.dataset.slot, subj = t.dataset.subj;
       const items = [], acts = [];
       if (canTeach(gid, subj)) {
-        items.push("📝 Выдать ДЗ на эту пару (" + ddmm(d) + ")"); acts.push(() => hwDialog(null, d, slot, subj));
+        items.push("📝 Выдать ДЗ на эту пару (" + ddmm(d) + ")"); acts.push(() => hwDialog(null, d, slot, subj, gid));
         const nx = upcoming(sched(gid), subj, addDays(dayStart(d > new Date() ? d : new Date()), 0), 3).find(o => o.date > d);
-        if (nx) { items.push("⏭ Выдать ДЗ на следующую пару (" + ddmm(nx.date) + ")"); acts.push(() => hwDialog(null, nx.date, nx.slot.num, subj)); }
-        items.push("📒 Поставить оценки"); acts.push(null);
-      }
-      if (isHeadman(gid)) { items.push("📒 Отметить посещаемость"); acts.push(null); }
-      if (!canTeach(gid, subj) && !isHeadman(gid) && canOpenJournal(gid)) { items.push("📒 Открыть в журнале"); acts.push(null); }
+        if (nx) { items.push("⏭ Выдать ДЗ на следующую пару (" + ddmm(nx.date) + ")"); acts.push(() => hwDialog(null, nx.date, nx.slot.num, subj, gid)); }
+        items.push("📒 Отметить Н и оценки"); acts.push(null);
+      } else if (canViewJournal(gid)) { items.push("📒 Открыть в журнале"); acts.push(null); }
       if (!items.length) break;
-      choose(subj, items, i => { if (acts[i]) acts[i](); else { S.jGroup = gid; S.jMode = "day"; S.jDate = d; S.tab = "journal"; render(); } });
+      choose(subj + (personal() ? " · " + gname(gid) : ""), items, i => { if (acts[i]) acts[i](); else { S.jGroup = gid; S.jMode = "day"; S.jDate = d; S.tab = "journal"; render(); } });
       break;
     }
     case "debt-task": if (debt) debtTaskDialog(debt); break;

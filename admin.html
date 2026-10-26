@@ -438,6 +438,30 @@ function gateHtml() {
         <button class="btn primary" type="submit">Создать администратора</button>
       </form>
     </div></div>`;
+  if (S.gate === "code") return `
+    <div class="gate"><div class="gate-box">
+      <div class="gate-mark">${MARK}<h1>Код из письма</h1></div>
+      <p class="muted">Мы отправили 6-значный код на ${esc(S.codeEmail || "твою почту")}. Он действует 10 минут.</p>
+      <form id="f">
+        ${e}
+        <label class="field">Код<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required autofocus></label>
+        <button class="btn primary" type="submit">Войти</button>
+      </form>
+      <div style="display:flex;gap:8px"><button class="btn ghost small" id="resend" type="button">Отправить код ещё раз</button><button class="btn ghost small" id="back" type="button">Назад</button></div>
+    </div></div>`;
+  if (S.gate === "reset") return `
+    <div class="gate"><div class="gate-box">
+      <div class="gate-mark">${MARK}<h1>Новый пароль</h1></div>
+      <p class="muted">${S.resetEmail ? "Код отправлен на " + esc(S.resetEmail) + ". Введи его и придумай новый пароль." : "Введи логин — пришлём код на привязанную почту."}</p>
+      <form id="f">
+        ${e}
+        <label class="field">Логин<input type="text" name="login" required autocomplete="username" value="${esc(S.resetLogin || "")}" ${S.resetEmail ? "readonly" : "autofocus"}></label>
+        ${S.resetEmail ? `<label class="field">Код из письма<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required autofocus></label>
+        <label class="field">Новый пароль (от 8 символов)<input type="password" name="pass" minlength="8" required autocomplete="new-password"></label>` : ""}
+        <button class="btn primary" type="submit">${S.resetEmail ? "Сменить пароль и войти" : "Получить код"}</button>
+      </form>
+      <button class="btn ghost small" id="back" type="button">Назад ко входу</button>
+    </div></div>`;
   return `
     <div class="gate"><div class="gate-box">
       <div class="gate-mark">${MARK}<h1>Расписание · админка</h1></div>
@@ -447,7 +471,7 @@ function gateHtml() {
         <label class="field">Пароль<input type="password" name="pass" required autocomplete="current-password"></label>
         <button class="btn primary" type="submit">Войти</button>
       </form>
-      <button class="btn ghost small" id="reconnect" type="button">Сменить сервер</button>
+      <div style="display:flex;gap:8px"><button class="btn ghost small" id="forgot" type="button">Забыл пароль</button><button class="btn ghost small" id="reconnect" type="button">Сменить сервер</button></div>
     </div></div>`;
 }
 
@@ -455,6 +479,15 @@ function bindGate() {
   const f = $("#f");
   const rc = $("#reconnect");
   if (rc) rc.onclick = () => { S.gate = "connect"; S.gateError = ""; render(); };
+  const fg = $("#forgot");
+  if (fg) fg.onclick = () => { S.gate = "reset"; S.resetEmail = null; S.resetLogin = (f.login && f.login.value) || ""; S.gateError = ""; render(); };
+  const bk = $("#back");
+  if (bk) bk.onclick = () => { S.gate = "login"; S.gateError = ""; S.resetEmail = null; render(); };
+  const rs = $("#resend");
+  if (rs) rs.onclick = async () => {
+    try { const r = await rpc("login_resend", { p_ticket: S.ticket }); toast("Код отправлен на " + r.email); }
+    catch (e) { S.gateError = e.message; render(); }
+  };
   f.onsubmit = async ev => {
     ev.preventDefault();
     const fd = new FormData(f), btn = f.querySelector("button[type=submit]");
@@ -466,9 +499,18 @@ function bindGate() {
         S.gate = (await rpc("bootstrap_needed")) ? "bootstrap" : "login";
         render(); return;
       }
-      const r = S.gate === "bootstrap"
-        ? await rpc("bootstrap_admin", { p_login: fd.get("login"), p_password: fd.get("pass"), p_full_name: fd.get("name") || "" })
-        : await rpc("login", { p_login: fd.get("login"), p_password: fd.get("pass"), p_device: "admin-panel" });
+      if (S.gate === "reset" && !S.resetEmail) {
+        S.resetLogin = String(fd.get("login")).trim();
+        const x = await rpc("reset_start", { p_login: S.resetLogin });
+        if (!x.ok) throw new Error(x.message);
+        S.resetEmail = x.email; render(); return;
+      }
+      let r;
+      if (S.gate === "bootstrap") r = await rpc("bootstrap_admin", { p_login: fd.get("login"), p_password: fd.get("pass"), p_full_name: fd.get("name") || "" });
+      else if (S.gate === "code") r = await rpc("login_code", { p_ticket: S.ticket, p_code: fd.get("code"), p_device: "admin-panel" });
+      else if (S.gate === "reset") r = await rpc("reset_finish", { p_login: S.resetLogin, p_code: fd.get("code"), p_new_password: fd.get("pass"), p_device: "admin-panel" });
+      else r = await rpc("login", { p_login: fd.get("login"), p_password: fd.get("pass"), p_device: "admin-panel" });
+      if (r.need_code) { S.ticket = r.ticket; S.codeEmail = r.email; S.gate = "code"; render(); return; }
       if (!(r.user.roles || []).includes("admin")) { await rpc("logout", { p_token: r.token }).catch(() => {}); throw new Error("Этот аккаунт не администратор. Для учеников — приложение на телефоне."); }
       S.token = r.token; S.user = r.user; LS.set("rasp_token", r.token);
       S.gate = null;
@@ -490,10 +532,13 @@ function renderSide() {
       </button>`).join("") : `<p class="small muted" style="padding:4px 10px">Пока нет групп</p>`}
     <div class="sect"><span>Люди</span></div>
     <button class="nav-item" data-act="users" ${S.view === "users" ? 'aria-current="page"' : ""}><span>Все аккаунты</span><span class="count">${S.users.length}</span></button>
+    <div class="sect"><span>Настройки</span></div>
+    <button class="nav-item" data-act="mail" ${S.view === "mail" ? 'aria-current="page"' : ""}><span>Почта для кодов</span></button>
     <div class="foot">
       <span>${esc(S.user.full_name || S.user.login)} <span class="muted">· админ</span></span>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn small" data-act="my-pass">Сменить пароль</button>
+        <button class="btn small" data-act="my-email">${S.user.email_verified ? "Моя почта ✓" : "Привязать почту"}</button>
         <button class="btn small" data-act="logout">Выйти</button>
       </div>
     </div>`;
@@ -503,6 +548,7 @@ function renderMain() {
   const el = $("#main"); if (!el) return;
   const menu = `<button class="btn menu-btn" data-act="menu" aria-label="Меню">☰ Меню</button>`;
   if (S.view === "users") { el.innerHTML = usersHtml(null, menu); return; }
+  if (S.view === "mail") { el.innerHTML = menu + mailHtml(); bindMail(); return; }
   const g = S.groups.find(g => g.id === S.groupId);
   if (!g) {
     el.innerHTML = `${menu}<div class="empty-state" style="margin-top:12vh">
@@ -639,7 +685,7 @@ function usersHtml(groupId, menu) {
   const head = groupId ? "" : `${menu}<div class="head"><div><h1>Все аккаунты</h1><p class="sub muted">${S.users.length} ${plural(S.users.length, "аккаунт", "аккаунта", "аккаунтов")}</p></div></div>`;
   const rows = list.map(u => `
     <tr>
-      <td>${esc(u.full_name) || '<span class="muted">без имени</span>'}${u.disabled ? ' <span class="badge off">отключён</span>' : ""}
+      <td>${esc(u.full_name) || '<span class="muted">без имени</span>'}${u.disabled ? ' <span class="badge off">отключён</span>' : ""}${u.email_verified ? ` <span class="badge r-curator" title="${esc(u.email)}">почта ✓</span>` : ""}
         <div style="margin-top:3px">${roleBadges(u)}</div></td>
       <td class="login">${esc(u.login)}</td>
       <td class="small muted">${rolesDetail(u)}</td>
@@ -838,6 +884,8 @@ async function userDialog(u, presetGroup) {
     <div class="role-part" data-for="curator"><span class="t">Куратор — какие группы курирует (видит журнал)</span>
       ${groupChecks("cgroup", u ? (u.curator_groups || []) : (presetGroup ? [presetGroup] : []))}</div>
     ${isNew ? "" : `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="disabled" ${u.disabled ? "checked" : ""}> Отключить вход (аккаунт сохранится)</label>`}
+    ${!isNew && u.email_verified ? `<div class="note" style="display:flex;gap:10px;align-items:center"><span style="flex:1">Почта: <b>${esc(u.email)}</b>${u.twofa ? " · вход по коду включён" : ""}</span><button type="button" class="btn small danger" data-clear-email>Отвязать</button></div>`
+      : (!isNew ? `<p class="small muted">Почта не привязана — пароль восстанавливается только через «Новый пароль» здесь.</p>` : "")}
     <div class="actions">
       ${isNew ? "" : `<button class="btn danger left" type="button" data-del>Удалить аккаунт</button>`}
       <button class="btn" data-close>Отмена</button><button class="btn primary" type="submit">${isNew ? "Создать" : "Сохранить"}</button>
@@ -866,6 +914,12 @@ async function userDialog(u, presetGroup) {
         form.login.oninput = () => touched = true;
         form.name.oninput = () => { if (!touched) form.login.value = form.name.value.trim() ? suggestLogin(form.name.value, new Set(taken)) : ""; };
       }
+      const ce = form.querySelector("[data-clear-email]");
+      if (ce) ce.onclick = async () => {
+        if (!confirm(`Отвязать почту ${u.email}? Вход по коду отключится, «Забыл пароль» перестанет работать для этого аккаунта.`)) return;
+        try { await rpc("admin_clear_email", { ...T(), p_id: u.id }); dlg.close(); await reloadPeople(); toast("Почта отвязана"); }
+        catch (err) { dlgError(form, err.message); }
+      };
       const del = form.querySelector("[data-del]");
       if (del) del.onclick = async () => {
         if (!confirm(`Удалить аккаунт ${u.login}? Войти под ним больше не получится, его отметки в журнале и долги удалятся.`)) return;
@@ -1183,6 +1237,92 @@ function bindJournalDate() {
   if (d) d.onchange = () => { if (d.value) { if (Object.keys(S.jEdits).length && !confirm("Изменения не сохранены. Перейти без сохранения?")) { d.value = isoDate(S.jDate); return; } S.jDate = parseIso(d.value); S.jData = null; renderMain(); } };
 }
 
+/* ================== Почта для кодов ================== */
+function mailHtml() {
+  const m = S.mail;
+  if (!m) { loadMail(); return `<p class="muted">Загружаю…</p>`; }
+  return `
+    <div class="head"><div><h1>Почта для кодов</h1><p class="sub muted">Отсюда уходят коды входа, привязки почты и сброса пароля. Сервис — Brevo, бесплатно 300 писем в день.</p></div></div>
+    ${m.pg_net ? "" : `<div class="err">В базе не включено расширение pg_net — письма не уйдут. Supabase → Database → Extensions → pg_net → Enable, потом запусти supabase_setup.sql ещё раз.</div>`}
+    <div class="note" style="margin-bottom:14px">${m.ready ? "✅ Отправка настроена" : "⚠️ Отправка не настроена: пока пользователи не смогут привязать почту и восстановить пароль сами. Вход работает как обычно."}</div>
+    <form id="mailForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:560px">
+      <label class="field">API-ключ Brevo ${m.key_set ? `<span class="muted">(сохранён, заканчивается на ${esc(m.key_hint)} — оставь пустым, чтобы не менять)</span>` : ""}
+        <input type="password" name="key" autocomplete="off" placeholder="${m.key_set ? "••••••••" : "xkeysib-…"}"></label>
+      <label class="field">Адрес отправителя (подтверждённый в Brevo)<input type="text" name="from" value="${esc(m.from)}" placeholder="raspisanie.kody@gmail.com"></label>
+      <label class="field">Имя отправителя<input type="text" name="name" value="${esc(m.from_name || "Расписание")}"></label>
+      <div><button class="btn primary" type="submit">Сохранить</button></div>
+    </form>
+    <form id="testForm" class="list" style="padding:18px;display:grid;gap:12px;max-width:560px;margin-top:14px">
+      <b>Проверка</b>
+      <label class="field">Куда отправить тестовое письмо<input type="text" name="to" placeholder="твоя почта"></label>
+      <div style="display:flex;gap:10px;align-items:center"><button class="btn" type="submit" ${m.ready ? "" : "disabled"}>Отправить тестовое письмо</button><span id="testStatus" class="status"></span></div>
+    </form>`;
+}
+async function loadMail() {
+  try { S.mail = await rpc("admin_get_mail", T()); } catch (e) { toast(e.message); return; }
+  if (S.view === "mail") renderMain();
+}
+function bindMail() {
+  const f = $("#mailForm"), t = $("#testForm");
+  if (!f) return;
+  f.onsubmit = async e => {
+    e.preventDefault();
+    try { S.mail = await rpc("admin_set_mail", { ...T(), p_api_key: f.key.value, p_from: f.from.value, p_from_name: f.name.value }); renderMain(); toast("Сохранено"); }
+    catch (x) { toast(x.message); }
+  };
+  t.onsubmit = async e => {
+    e.preventDefault();
+    const st = $("#testStatus");
+    st.className = "status saving"; st.textContent = "Отправляю…";
+    try {
+      const r = await rpc("admin_test_mail", { ...T(), p_to: t.to.value });
+      for (let i = 0; i < 10; i++) {
+        await new Promise(ok => setTimeout(ok, 1500));
+        const s2 = await rpc("admin_mail_status", { ...T(), p_request: r.request_id });
+        if (s2.state === "sent") { st.className = "status saved"; st.textContent = "Brevo принял письмо — проверь почту (и папку «Спам»)"; return; }
+        if (s2.state === "failed") { st.className = "status error"; st.textContent = "Brevo отказал (" + s2.status + "): " + s2.details; return; }
+      }
+      st.className = "status"; st.textContent = "Ответа пока нет — проверь почту через минуту";
+    } catch (x) { st.className = "status error"; st.textContent = x.message; }
+  };
+}
+function myEmailDialog() {
+  const u = S.user;
+  openDialog(`
+    <h2>Моя почта</h2>
+    ${u.email_verified ? `<p>Привязана <b>${esc(u.email)}</b>. При входе в админку и приложение на неё приходит код.</p>` : `<p class="muted">Привяжи почту — при входе на неё будет приходить код, и пароль можно будет восстановить самому.</p>`}
+    <label class="field">${u.email_verified ? "Сменить на другую почту" : "Почта"}<input type="text" name="email" autocomplete="email" placeholder="name@example.com"></label>
+    <div id="codeRow" class="hidden"><label class="field">Код из письма<input type="text" name="code" inputmode="numeric" maxlength="8"></label></div>
+    <div class="actions">
+      ${u.email_verified ? `<button class="btn danger left" type="button" data-remove>Отвязать</button>` : ""}
+      <button class="btn" data-close>Закрыть</button><button class="btn primary" type="submit">Отправить код</button>
+    </div>`,
+    form => {
+      let step = 1;
+      const rm = form.querySelector("[data-remove]");
+      if (rm) rm.onclick = async () => {
+        const pw = prompt("Чтобы отвязать почту, введи свой пароль");
+        if (!pw) return;
+        try { const r = await rpc("email_remove", { ...T(), p_password: pw }); S.user = r.user; dlg.close(); renderSide(); toast("Почта отвязана"); }
+        catch (x) { dlgError(form, x.message); }
+      };
+      form.onsubmit = async e => {
+        e.preventDefault();
+        try {
+          if (step === 1) {
+            const r = await rpc("email_start", { ...T(), p_email: form.email.value });
+            step = 2; form.querySelector("#codeRow").classList.remove("hidden"); form.code.focus();
+            form.querySelector("[type=submit]").textContent = "Подтвердить";
+            toast("Код отправлен на " + r.email);
+          } else {
+            const r = await rpc("email_confirm", { ...T(), p_code: form.code.value });
+            S.user = r.user; dlg.close(); renderSide(); toast("Почта привязана ✓");
+          }
+        } catch (x) { dlgError(form, x.message); }
+      };
+    });
+}
+
 /* ================== События ================== */
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-act],[data-group],[data-tab],[data-cell]");
@@ -1199,6 +1339,8 @@ document.addEventListener("click", async e => {
     switch (t.dataset.act) {
       case "menu": side.classList.toggle("open"); break;
       case "users": side.classList.remove("open"); S.view = "users"; renderSide(); renderMain(); break;
+      case "mail": side.classList.remove("open"); S.view = "mail"; S.mail = null; renderSide(); renderMain(); break;
+      case "my-email": myEmailDialog(); break;
       case "new-group": groupDialog(null); break;
       case "rename-group": groupDialog(S.groups.find(g => g.id === S.groupId)); break;
       case "delete-group": {
